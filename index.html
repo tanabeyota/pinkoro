@@ -850,6 +850,21 @@
                 this.onMessageReceived = null;
                 this.onError = null;
                 this.onDisconnected = null;
+                
+                // STUNサーバーの設定を定義 (TURNサーバーは除外)
+                this.peerConfig = {
+                    config: {
+                        'iceServers': [
+                            // 1. 無料のSTUNサーバー (Google, Cloudflare)
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' },
+                            { urls: 'stun:stun.cloudflare.com:3478' },
+                            
+                            // 2. TwilioのSTUNサーバー
+                            { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
+                        ]
+                    }
+                };
             }
 
             hostRoom() {
@@ -859,7 +874,8 @@
                 const roomId = 'liarsdice-' + shortId;
 
                 try {
-                    this.peer = new Peer(roomId);
+                    // 第2引数に設定を渡す
+                    this.peer = new Peer(roomId, this.peerConfig);
                     this.peer.on('open', () => { if (this.onRoomCreated) this.onRoomCreated(shortId); });
 
                     this.peer.on('connection', (connection) => {
@@ -880,7 +896,8 @@
                 this.isHost = false;
                 this.lastRoomId = shortId;
                 try {
-                    this.peer = new Peer();
+                    // 引数に設定を渡す
+                    this.peer = new Peer(this.peerConfig);
                     this.peer.on('open', () => {
                         const targetId = 'liarsdice-' + shortId;
                         const connection = this.peer.connect(targetId);
