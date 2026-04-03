@@ -1186,6 +1186,8 @@
                 this._setupLighting();
 
                 this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -50, 0) });
+                this.world.allowSleep = true; // ★軽量化: 世界全体のスリープ機能を有効化
+                
                 this.floorPhysMat = new CANNON.Material();
                 this.dicePhysMat = new CANNON.Material();
                 this.world.addContactMaterial(new CANNON.ContactMaterial(this.floorPhysMat, this.dicePhysMat, { friction: 0.01, restitution: 0.6 }));
@@ -1361,6 +1363,10 @@
                         this.scene.add(mesh); p.meshes.push(mesh);
                         
                         const body = new CANNON.Body({ mass: 1, shape: new CANNON.Box(halfExtents), material: this.dicePhysMat });
+                        body.allowSleep = true; // ★軽量化: サイコロのスリープを許可
+                        body.sleepSpeedLimit = 0.5; // ★軽量化: 速度が0.5以下になったら計算を停止
+                        body.sleepTimeLimit = 0.5; // ★軽量化: 上記の速度が0.5秒続いたら完全にスリープ
+                        
                         body.position.set(p.cx, startY, p.cz);
                         this.world.addBody(body); p.bodies.push(body);
                     }
@@ -1419,6 +1425,8 @@
                 players.forEach(p => {
                     for (let i = 0; i < p.count; i++) {
                         const body = p.bodies[i];
+                        body.wakeUp(); // ★スリープ状態から強制的に起こして計算を再開させる
+                        
                         const rx = (Math.random() - 0.5) * 4;
                         const rz = (Math.random() - 0.5) * 4;
                         body.position.set(p.cx + rx, 15 + i * 1.5, p.cz + rz);
@@ -1435,7 +1443,6 @@
                 players.forEach((p, pIdx) => {
                     p.bodies.forEach((b, mIdx) => {
                         if (data[pIdx] && data[pIdx][mIdx]) {
-                            // CANNON.js仕様に合わせて1つずつセットするように修正
                             b.position.set(data[pIdx][mIdx].p[0], data[pIdx][mIdx].p[1], data[pIdx][mIdx].p[2]);
                             b.quaternion.set(data[pIdx][mIdx].q[0], data[pIdx][mIdx].q[1], data[pIdx][mIdx].q[2], data[pIdx][mIdx].q[3]);
                             b.velocity.set(0, 0, 0);
@@ -1467,28 +1474,39 @@
             update(gameData) {
                 if (!this.scene) return;
 
-                this.world.step(1 / 60);
                 let allStopped = true;
 
-                gameData.players.forEach(p => {
-                    for (let i = 0; i < p.count; i++) {
-                        p.meshes[i].position.copy(p.bodies[i].position);
-                        p.meshes[i].quaternion.copy(p.bodies[i].quaternion);
+                // ★軽量化: サイコロが転がっている時だけ物理演算を回す
+                if (gameData.state === 'ROLLING') {
+                    this.world.step(1 / 60);
 
-                        if (gameData.state === 'ROLLING') {
-                            const vSq = p.bodies[i].velocity.lengthSquared(); const avSq = p.bodies[i].angularVelocity.lengthSquared();
-                            if (vSq > 0.01 || avSq > 0.01) allStopped = false;
+                    gameData.players.forEach(p => {
+                        for (let i = 0; i < p.count; i++) {
+                            const body = p.bodies[i];
+                            const mesh = p.meshes[i];
 
-                            if (vSq < 1.0 && avSq < 1.0 && p.bodies[i].position.y > (this.diceSize / 2 + 0.1)) {
-                                p.bodies[i].applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 8, -2, (Math.random() - 0.5) * 8), new CANNON.Vec3(0, this.diceSize / 2, 0));
-                                allStopped = false;
+                            // ★超軽量化: サイコロが「スリープ状態（SLEEPING）」でない時だけ座標を更新する
+                            if (body.sleepState !== CANNON.Body.SLEEPING) {
+                                mesh.position.copy(body.position);
+                                mesh.quaternion.copy(body.quaternion);
+                                allStopped = false; // 1つでも動いているサイコロがあれば停止とみなさない
+
+                                // ★超軽量化: 不自然に止まるのを防ぐ処理を「毎フレーム」ではなく「たまに(5%の確率)」に減らす
+                                if (Math.random() < 0.05) {
+                                    const vSq = body.velocity.lengthSquared(); 
+                                    const avSq = body.angularVelocity.lengthSquared();
+                                    if (vSq < 0.5 && avSq < 0.5 && body.position.y > (this.diceSize / 2 + 0.5)) {
+                                        body.applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 5, -2, (Math.random() - 0.5) * 5), new CANNON.Vec3(0, this.diceSize / 2, 0));
+                                    }
+                                }
                             }
                         }
-                    }
-                });
+                    });
 
-                if (this.isHost && gameData.state === 'ROLLING' && allStopped) {
-                    if (this.onDiceStopped) this.onDiceStopped();
+                    // ホストが「全員のサイコロがスリープした」ことを検知して停止シグナルを出す
+                    if (this.isHost && allStopped) {
+                        if (this.onDiceStopped) this.onDiceStopped();
+                    }
                 }
 
                 if (this.particles.length > 0) {
