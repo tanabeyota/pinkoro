@@ -1219,12 +1219,10 @@
                 const floorMesh = new THREE.Mesh(new THREE.CircleGeometry(100, 64), new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.1 }));
                 floorMesh.rotation.x = -Math.PI / 2; this.scene.add(floorMesh);
 
-                if (this.isHost) {
-                    const floorBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
-                    floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); this.world.addBody(floorBody);
-                    const ceilingBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
-                    ceilingBody.quaternion.setFromEuler(Math.PI / 2, 0, 0); ceilingBody.position.set(0, 15, 0); this.world.addBody(ceilingBody);
-                }
+                const floorBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
+                floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); this.world.addBody(floorBody);
+                const ceilingBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
+                ceilingBody.quaternion.setFromEuler(Math.PI / 2, 0, 0); ceilingBody.position.set(0, 15, 0); this.world.addBody(ceilingBody);
 
                 players.forEach((p, i) => {
                     p.angle = (i / players.length) * Math.PI * 2;
@@ -1286,18 +1284,16 @@
                 trayGroup.add(trayRimMesh);
                 this.scene.add(trayGroup);
 
-                if (this.isHost) {
-                    const numWallSegments = 32; const segmentWidth = (2 * Math.PI * wallRadius) / numWallSegments;
-                    for (let i = 0; i < numWallSegments; i++) {
-                        const localAngle = (i / numWallSegments) * Math.PI * 2;
-                        const adjustedRadius = wallRadius + 5;
-                        const wallBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(5, 10, segmentWidth / 2 + 0.1)), material: this.floorPhysMat });
-                        const lx = Math.cos(localAngle) * adjustedRadius;
-                        const lz = Math.sin(localAngle) * adjustedRadius;
-                        wallBody.position.set(p.cx + lx, 10, p.cz + lz);
-                        wallBody.quaternion.setFromEuler(0, -localAngle, 0);
-                        this.world.addBody(wallBody);
-                    }
+                const numWallSegments = 32; const segmentWidth = (2 * Math.PI * wallRadius) / numWallSegments;
+                for (let i = 0; i < numWallSegments; i++) {
+                    const localAngle = (i / numWallSegments) * Math.PI * 2;
+                    const adjustedRadius = wallRadius + 5;
+                    const wallBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(5, 10, segmentWidth / 2 + 0.1)), material: this.floorPhysMat });
+                    const lx = Math.cos(localAngle) * adjustedRadius;
+                    const lz = Math.sin(localAngle) * adjustedRadius;
+                    wallBody.position.set(p.cx + lx, 10, p.cz + lz);
+                    wallBody.quaternion.setFromEuler(0, -localAngle, 0);
+                    this.world.addBody(wallBody);
                 }
             }
 
@@ -1348,12 +1344,11 @@
 
                 players.forEach(p => {
                     if (p.meshes) p.meshes.forEach(m => this.scene.remove(m));
-                    if (this.isHost && p.bodies) p.bodies.forEach(b => this.world.removeBody(b));
+                    if (p.bodies) p.bodies.forEach(b => this.world.removeBody(b));
 
-                    p.meshes = []; if (this.isHost) p.bodies = [];
+                    p.meshes = []; p.bodies = [];
 
                     for (let i = 0; i < p.count; i++) {
-                        // Create unique materials for each dice to allow individual highlighting
                         const diceMaterials = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshStandardMaterial({ 
                             map: this._createDiceTexture(n), roughness: 0.15, metalness: 0.1, emissive: 0x000000 
                         }));
@@ -1365,11 +1360,10 @@
                         mesh.position.set(p.cx, startY, p.cz);
 
                         this.scene.add(mesh); p.meshes.push(mesh);
-                        if (this.isHost) {
-                            const body = new CANNON.Body({ mass: 1, shape: new CANNON.Box(halfExtents), material: this.dicePhysMat });
-                            body.position.set(p.cx, startY, p.cz);
-                            this.world.addBody(body); p.bodies.push(body);
-                        }
+                        
+                        const body = new CANNON.Body({ mass: 1, shape: new CANNON.Box(halfExtents), material: this.dicePhysMat });
+                        body.position.set(p.cx, startY, p.cz);
+                        this.world.addBody(body); p.bodies.push(body);
                     }
                 });
             }
@@ -1387,7 +1381,6 @@
                         else face = upVector.z > 0 ? 3 : 4;
 
                         if (face === targetFace || face === 1) {
-                            // Highlight winning / matching dice
                             mesh.userData.diceMats.forEach(m => {
                                 m.emissive.setHex(0x00aaff);
                                 m.emissiveIntensity = 1.5;
@@ -1398,7 +1391,6 @@
                             mesh.userData.baseY = mesh.position.y;
                             mesh.userData.timeOffset = Math.random() * Math.PI * 2;
                         } else {
-                            // Do not dim non-matching dice
                             mesh.userData.diceMats.forEach(m => {
                                 m.emissive.setHex(0x000000);
                                 m.color.setHex(0xffffff);
@@ -1439,6 +1431,22 @@
                 });
             }
 
+            snapDice(players, data) {
+                if (!data) return;
+                players.forEach((p, pIdx) => {
+                    p.bodies.forEach((b, mIdx) => {
+                        if (data[pIdx] && data[pIdx][mIdx]) {
+                            b.position.fromArray(data[pIdx][mIdx].p);
+                            b.quaternion.fromArray(data[pIdx][mIdx].q);
+                            b.velocity.set(0, 0, 0);
+                            b.angularVelocity.set(0, 0, 0);
+                            p.meshes[mIdx].position.copy(b.position);
+                            p.meshes[mIdx].quaternion.copy(b.quaternion);
+                        }
+                    });
+                });
+            }
+
             countAllDice(players) {
                 let counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
                 players.forEach(p => {
@@ -1456,47 +1464,31 @@
                 return counts;
             }
 
-            syncPhysics(players, data) {
-                players.forEach((p, pIdx) => {
-                    p.meshes.forEach((m, mIdx) => {
-                        if (data[pIdx] && data[pIdx][mIdx]) {
-                            m.position.fromArray(data[pIdx][mIdx].p);
-                            m.quaternion.fromArray(data[pIdx][mIdx].q);
-                        }
-                    });
-                });
-            }
-
             update(gameData) {
-                if (!this.scene) return null;
-                let syncData = null;
+                if (!this.scene) return;
 
-                if (this.isHost) {
-                    this.world.step(1 / 60);
-                    let allStopped = true;
+                this.world.step(1 / 60);
+                let allStopped = true;
 
-                    gameData.players.forEach(p => {
-                        for (let i = 0; i < p.count; i++) {
-                            p.meshes[i].position.copy(p.bodies[i].position);
-                            p.meshes[i].quaternion.copy(p.bodies[i].quaternion);
+                gameData.players.forEach(p => {
+                    for (let i = 0; i < p.count; i++) {
+                        p.meshes[i].position.copy(p.bodies[i].position);
+                        p.meshes[i].quaternion.copy(p.bodies[i].quaternion);
 
-                            if (gameData.state === 'ROLLING') {
-                                const vSq = p.bodies[i].velocity.lengthSquared(); const avSq = p.bodies[i].angularVelocity.lengthSquared();
-                                if (vSq > 0.01 || avSq > 0.01) allStopped = false;
+                        if (gameData.state === 'ROLLING') {
+                            const vSq = p.bodies[i].velocity.lengthSquared(); const avSq = p.bodies[i].angularVelocity.lengthSquared();
+                            if (vSq > 0.01 || avSq > 0.01) allStopped = false;
 
-                                if (vSq < 1.0 && avSq < 1.0 && p.bodies[i].position.y > (this.diceSize / 2 + 0.1)) {
-                                    p.bodies[i].applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 8, -2, (Math.random() - 0.5) * 8), new CANNON.Vec3(0, this.diceSize / 2, 0));
-                                    allStopped = false;
-                                }
+                            if (vSq < 1.0 && avSq < 1.0 && p.bodies[i].position.y > (this.diceSize / 2 + 0.1)) {
+                                p.bodies[i].applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 8, -2, (Math.random() - 0.5) * 8), new CANNON.Vec3(0, this.diceSize / 2, 0));
+                                allStopped = false;
                             }
                         }
-                    });
-
-                    if (gameData.state === 'ROLLING' && allStopped) {
-                        if (this.onDiceStopped) this.onDiceStopped();
                     }
+                });
 
-                    syncData = gameData.players.map(p => p.meshes.map(m => ({ p: m.position.toArray(), q: m.quaternion.toArray() })));
+                if (this.isHost && gameData.state === 'ROLLING' && allStopped) {
+                    if (this.onDiceStopped) this.onDiceStopped();
                 }
 
                 if (this.particles.length > 0) {
@@ -1537,7 +1529,6 @@
                 this.camera.lookAt(this.currentLookAt);
 
                 this.renderer.render(this.scene, this.camera);
-                return syncData;
             }
         }
 
@@ -1563,6 +1554,9 @@
                 this.cupTargetRotX = {};
                 this.turnIndex = 0;
                 this.currentBid = { face: 0, count: 0, playerId: null };
+                
+                this.finalDiceData = null;
+                this.isMouseDown = false; // ★バグ修正用：マウスのホールド状態をクラス内で管理
 
                 this._setupEvents();
 
@@ -1596,7 +1590,8 @@
                     state: this.state,
                     turnIndex: this.turnIndex,
                     currentBid: this.currentBid,
-                    playerCounts: this.players.map(p => p.count)
+                    playerCounts: this.players.map(p => p.count),
+                    finalDiceData: this.finalDiceData
                 };
             }
 
@@ -1611,6 +1606,11 @@
 
                 this.ui.updateHUD(this.players, this.myIndex);
                 this.graphics.recreateDice(this.players);
+                
+                if (stateData.finalDiceData) {
+                    this.finalDiceData = stateData.finalDiceData;
+                    setTimeout(() => this.graphics.snapDice(this.players, this.finalDiceData), 100);
+                }
 
                 if (this.currentBid && this.currentBid.count > 0) {
                     const cp = this.players.find(p => p.id === this.currentBid.playerId);
@@ -1626,6 +1626,13 @@
                 }
 
                 this.ui.hideReconnectModal();
+            }
+
+            _resetCupHold() { // ★バグ修正：独立したメソッドに変更
+                if (this.isMouseDown) {
+                    this.isMouseDown = false;
+                    document.getElementById('canvas-container').style.cursor = 'pointer';
+                }
             }
 
             _setupEvents() {
@@ -1659,14 +1666,6 @@
                     this.resolveDoubtLocal(this.players[this.myIndex]);
                 };
 
-                let isMouseDown = false;
-                const resetCupHold = () => {
-                    if (isMouseDown) {
-                        isMouseDown = false;
-                        document.getElementById('canvas-container').style.cursor = 'pointer';
-                    }
-                };
-
                 document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
                     if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
 
@@ -1674,7 +1673,8 @@
                         return this.startRoundHost();
                     }
                     if (this.state === 'PLAYING') {
-                        isMouseDown = true; document.getElementById('canvas-container').style.cursor = 'grabbing';
+                        this.isMouseDown = true; 
+                        document.getElementById('canvas-container').style.cursor = 'grabbing';
                         const myId = this.players[this.myIndex].id;
                         this.cupTargetY[myId] = 0;
                         this.cupTargetRotX[myId] = -Math.PI * 0.3;
@@ -1683,9 +1683,9 @@
                 });
 
                 window.addEventListener('mouseup', () => {
-                    if (isMouseDown) {
-                        isMouseDown = false; document.getElementById('canvas-container').style.cursor = 'pointer';
-                        // Only reset cup if still in PLAYING state
+                    if (this.isMouseDown) {
+                        this.isMouseDown = false; 
+                        document.getElementById('canvas-container').style.cursor = 'pointer';
                         if (this.state === 'PLAYING') {
                             const myId = this.players[this.myIndex].id;
                             this.cupTargetY[myId] = 0;
@@ -1695,14 +1695,13 @@
                     }
                 });
 
-                // タッチイベントの追加（スマホ対応用）
                 document.getElementById('canvas-container').addEventListener('touchstart', (e) => {
                     if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
                     if (this.state === 'INITIALIZING' && this.isHost && this.connectedGuests === this.playerCount - 1) {
                         return this.startRoundHost();
                     }
                     if (this.state === 'PLAYING') {
-                        isMouseDown = true;
+                        this.isMouseDown = true;
                         const myId = this.players[this.myIndex].id;
                         this.cupTargetY[myId] = 0;
                         this.cupTargetRotX[myId] = -Math.PI * 0.3;
@@ -1711,9 +1710,8 @@
                 }, { passive: false });
 
                 document.getElementById('canvas-container').addEventListener('touchend', () => {
-                    if (isMouseDown) {
-                        isMouseDown = false;
-                        // Only reset cup if still in PLAYING state
+                    if (this.isMouseDown) {
+                        this.isMouseDown = false;
                         if (this.state === 'PLAYING') {
                             const myId = this.players[this.myIndex].id;
                             this.cupTargetY[myId] = 0;
@@ -1741,17 +1739,14 @@
                 this.network.onGuestJoined = (conn) => {
                     this.connectedGuests++;
                     const assignedIndex = this.connectedGuests;
-                    // Store assigned index on connection object for later GAME_INIT
                     conn.__assignedIndex = assignedIndex;
 
-                    // Just notify guest of their index (no graphics init yet)
                     conn.send({ type: 'ASSIGN_INDEX', index: assignedIndex });
                     this.ui.setHostStatus(`参加者を待っています... (${this.connectedGuests + 1}/${this.playerCount})`);
 
                     if (this.connectedGuests === this.playerCount - 1) {
                         this.ui.setHostStatus("全員揃いました！ゲームを開始します...");
                         setTimeout(() => {
-                            // Send personalized GAME_INIT to each guest
                             this.network.conns.forEach(c => {
                                 if (c && c.open) {
                                     c.send({
@@ -1784,14 +1779,12 @@
 
                 this.network.onMessageReceived = (msg) => {
                     if (msg.type === 'ASSIGN_INDEX' && !this.isHost) {
-                        // Just store index and show waiting status - don't init yet
                         this.myIndex = msg.index;
                         this.ui.setHostStatus("ホストからの開始合図を待っています...");
                         return;
                     }
 
                     if (msg.type === 'GAME_INIT' && !this.isHost) {
-                        // Full game initialization once all players are ready
                         this.myIndex = msg.myIndex;
                         this.initPlayers(msg.playerCount);
                         this.ui.hideConnectionPanel();
@@ -1809,13 +1802,12 @@
                         this._restoreFullState(msg);
                     }
 
-                    if (msg.type === 'SYNC_PHYSICS' && !this.isHost) {
-                        this.graphics.syncPhysics(this.players, msg.data);
-                    } else if (msg.type === 'STATE_START_ROUND') {
-                        // ★修正1：ゲストはラウンド開始の合図が来たらサイコロを再生成する
+                    if (msg.type === 'STATE_START_ROUND') {
                         this.graphics.recreateDice(this.players);
                         this.startRoundLocal();
-                    } else if (msg.type === 'STATE_IDLE') {
+                    } else if (msg.type === 'STATE_DICE_STOPPED') {
+                        this.finalDiceData = msg.diceData;
+                        this.graphics.snapDice(this.players, this.finalDiceData);
                         this.state = 'IDLE';
                         Object.keys(this.cupTargetY).forEach(k => this.cupTargetY[k] = 0);
                     } else if (msg.type === 'STATE_PROCEED_TURN') {
@@ -1831,9 +1823,14 @@
                 };
 
                 this.graphics.onDiceStopped = () => {
+                    this.finalDiceData = this.players.map(p => p.bodies.map(b => ({
+                        p: b.position.toArray(),
+                        q: b.quaternion.toArray()
+                    })));
+                    this.network.send('STATE_DICE_STOPPED', { diceData: this.finalDiceData });
+                    
                     this.state = 'IDLE';
                     Object.keys(this.cupTargetY).forEach(k => this.cupTargetY[k] = 0);
-                    this.network.send('STATE_IDLE');
                     setTimeout(() => { this.proceedTurnHost(); }, 500);
                 };
             }
@@ -1886,8 +1883,7 @@
 
             async resolveDoubtLocal(doubtingPlayer) {
                 this.state = 'RESOLVE';
-                // Force-cancel any active cup-hold interaction
-                resetCupHold();
+                this._resetCupHold(); // ★バグ修正：正しいメソッド呼び出しに変更
 
                 this.ui.hideActionPanel();
                 this.ui.hideCurrentBidDisplay();
@@ -1916,7 +1912,6 @@
                 if (bidF !== 1 && onesCount > 0) logMsg += `(ワイルドの1が ${onesCount}個) `;
                 this.ui.addLog(logMsg + `でした！`, 'sys');
 
-                // Highlight winning dice
                 this.graphics.highlightDice(this.players, bidF);
 
                 await new Promise(r => setTimeout(r, 1500));
@@ -1937,7 +1932,6 @@
                     isSuccess = true;
                 }
 
-                // Show central result display
                 this.ui.showResult(bidF, actualC, doubtingPlayer.name, isSuccess);
 
                 if (isMyWin) {
@@ -1959,12 +1953,8 @@
                 } else {
                     await new Promise(r => setTimeout(r, 4000));
 
-                    // ↓ ここにあった this.graphics.recreateDice(this.players); を削除
-
                     if (this.isHost) {
-                        // ★修正2：ホストだけがここでサイコロを再生成し、ゲストに合図を送る
                         this.graphics.recreateDice(this.players);
-
                         this.turnIndex = this.players.findIndex(p => p.id === (actualC >= bidC ? doubtingPlayer.id : declaringPlayer.id));
                         this.startRoundHost();
                     }
@@ -1972,13 +1962,14 @@
             }
 
             startRoundHost() {
-                this.graphics.startRoll(this.players);
                 this.network.send('STATE_START_ROUND');
                 this.startRoundLocal();
             }
 
             startRoundLocal() {
                 this.state = 'ROLLING';
+                this.graphics.startRoll(this.players);
+
                 this.currentBid = { face: 0, count: 0, playerId: null };
 
                 this.ui.hideActionPanel();
@@ -2009,14 +2000,10 @@
                     cupTargetY: this.cupTargetY,
                     cupTargetRotX: this.cupTargetRotX
                 };
-                const syncData = this.graphics.update(gameData);
-                if (this.isHost && syncData) {
-                    this.network.send('SYNC_PHYSICS', { data: syncData });
-                }
+                
+                this.graphics.update(gameData);
 
-                // ★ ガラガラ音の再生ロジック（ネットワーク負荷ゼロ）
                 if (this.state === 'ROLLING') {
-                    // 毎フレーム一定の確率で短い打撃音を鳴らし、乱数で音量を変えてリアルさを出す
                     if (Math.random() < 0.25) {
                         this.sound.playDiceHit(0.01 + Math.random() * 0.03);
                     }
