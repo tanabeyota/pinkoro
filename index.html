@@ -1435,8 +1435,9 @@
                 players.forEach((p, pIdx) => {
                     p.bodies.forEach((b, mIdx) => {
                         if (data[pIdx] && data[pIdx][mIdx]) {
-                            b.position.fromArray(data[pIdx][mIdx].p);
-                            b.quaternion.fromArray(data[pIdx][mIdx].q);
+                            // CANNON.js仕様に合わせて1つずつセットするように修正
+                            b.position.set(data[pIdx][mIdx].p[0], data[pIdx][mIdx].p[1], data[pIdx][mIdx].p[2]);
+                            b.quaternion.set(data[pIdx][mIdx].q[0], data[pIdx][mIdx].q[1], data[pIdx][mIdx].q[2], data[pIdx][mIdx].q[3]);
                             b.velocity.set(0, 0, 0);
                             b.angularVelocity.set(0, 0, 0);
                             p.meshes[mIdx].position.copy(b.position);
