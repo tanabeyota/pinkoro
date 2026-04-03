@@ -855,13 +855,12 @@
                 this.peerConfig = {
                     config: {
                         'iceServers': [
-                            // 1. 無料のSTUNサーバー (Google, Cloudflare)
                             { urls: 'stun:stun.l.google.com:19302' },
                             { urls: 'stun:stun1.l.google.com:19302' },
                             { urls: 'stun:stun.cloudflare.com:3478' },
                             
-                            // 2. TwilioのSTUNサーバー
-                            { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
+                            // 2. TwilioのSTUNサーバー ( ?transport=udp を消す )
+                            { urls: 'stun:global.stun.twilio.com:3478' }
                         ]
                     }
                 };
