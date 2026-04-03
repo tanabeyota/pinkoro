@@ -1,507 +1,2014 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ライアーズダイス (4人対戦)</title>
-<style>
-  :root {
-    --bg-color: #2c3e50;
-    --panel-bg: #34495e;
-    --text-color: #ecf0f1;
-    --accent-color: #1abc9c;
-    --danger-color: #e74c3c;
-    --dice-bg: #ffffff;
-    --dice-text: #2c3e50;
-    --active-bg: #2980b9;
-  }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    text-align: center;
-    margin: 0;
-    padding: 10px;
-  }
-  #game-board {
-    max-width: 800px;
-    margin: 0 auto;
-    background-color: var(--panel-bg);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-  }
-  h2 { margin-top: 0; }
-  #log {
-    background: var(--accent-color);
-    color: white;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    font-weight: bold;
-    font-size: 1.1em;
-    min-height: 48px;
-    white-space: pre-wrap;
-  }
-  .players-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    margin-bottom: 20px;
-  }
-  .player-area {
-    padding: 15px;
-    background: rgba(0,0,0,0.15);
-    border-radius: 8px;
-    border: 2px solid transparent;
-    transition: border-color 0.3s, background 0.3s;
-  }
-  .player-area.active-turn {
-    border-color: #f1c40f;
-    background: rgba(241, 196, 15, 0.1);
-  }
-  .player-area.eliminated {
-    opacity: 0.3;
-  }
-  .player-name {
-    font-weight: bold;
-    margin-bottom: 10px;
-    font-size: 1.1em;
-  }
-  .dice-container {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 45px;
-  }
-  .die {
-    width: 40px;
-    height: 40px;
-    background: var(--dice-bg);
-    color: var(--dice-text);
-    font-size: 30px;
-    line-height: 40px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    user-select: none;
-  }
-  .hidden-die {
-    background: #7f8c8d;
-    color: #95a5a6;
-    font-size: 24px;
-  }
-  .info-panel {
-    background: rgba(255,255,255,0.05);
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-  }
-  .info-text { font-size: 1.2em; font-weight: bold; color: #f1c40f; }
-  .controls {
-    padding: 15px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 8px;
-  }
-  select, button {
-    font-size: 16px;
-    padding: 8px 16px;
-    margin: 5px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-  }
-  select { background: white; color: black; }
-  button {
-    background: #3498db;
-    color: white;
-    font-weight: bold;
-    transition: background 0.2s;
-  }
-  button:hover:not(:disabled) { background: #2980b9; }
-  button:disabled { background: #95a5a6; cursor: not-allowed; }
-  #btn-dudo { background: var(--danger-color); }
-  #btn-dudo:hover:not(:disabled) { background: #c0392b; }
-  
-  @media (max-width: 600px) {
-    .players-grid { grid-template-columns: 1fr; }
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Dice Game - Online Multiplayer</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050507;
+            user-select: none;
+            font-family: 'Outfit', sans-serif;
+            color: #fff;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        #btn-help {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            width: 44px;
+            height: 44px;
+            background: rgba(15, 15, 25, 0.4);
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            border-radius: 50%;
+            color: #00f2fe;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 90;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        #btn-help:hover {
+            background: rgba(0, 242, 254, 0.15);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.6), inset 0 0 0 1px rgba(255,255,255,0.2);
+            transform: translateY(-2px) scale(1.05);
+        }
+
+        #rule-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid #4facfe;
+            border-radius: 16px;
+            padding: 30px;
+            z-index: 200;
+            width: 85%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            line-height: 1.6;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        #rule-modal h2 {
+            color: #00f2fe;
+            margin-top: 0;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        #rule-modal ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+
+        #rule-modal li {
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+
+        #rule-modal .highlight {
+            color: #f1c40f;
+            font-weight: bold;
+        }
+
+        .btn-close-modal {
+            display: block;
+            width: 100%;
+            background: #111;
+            color: #fff;
+            border: 1px solid #ff007f;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        #connection-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 22, 0.6);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 32px;
+            padding: 48px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+            text-align: center;
+            z-index: 100;
+            width: 380px;
+            max-width: 85vw;
+        }
+
+        #connection-panel h2 {
+            margin-top: 0;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        .panel-section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-section:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .panel-section h3 {
+            margin-top: 0;
+            color: #4facfe;
+            font-size: 18px;
+        }
+
+        #room-id-display {
+            color: #00f2fe;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            display: block;
+            margin: 10px 0;
+        }
+
+        #input-room-id {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 20px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: bold;
+            text-transform: uppercase;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .btn-connect {
+            width: 85%;
+            background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            color: #fff;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4);
+        }
+
+        .btn-connect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 114, 255, 0.6);
+            filter: brightness(1.1);
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 15, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 32px;
+            padding: 24px 56px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            min-width: 320px;
+            z-index: 20;
+            display: none;
+        }
+
+        #title {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: rgba(255, 255, 255, 0.8);
+            z-index: 20;
+            text-transform: uppercase;
+        }
+
+        #role-indicator {
+            position: absolute;
+            top: 60px;
+            left: 40px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #f1c40f;
+            z-index: 20;
+        }
+
+        #instruction {
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+
+        #sub-instruction {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 400;
+        }
+
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(circle at center, transparent 30%, rgba(5, 5, 7, 0.9) 100%);
+            z-index: 10;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 20;
+            display: none;
+        }
+
+        .player-info {
+            background: rgba(15, 15, 22, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 12px 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .player-name {
+            font-size: 14px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        .player-dice {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .dice-icon {
+            font-size: 24px;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.3));
+        }
+
+        .dice-number {
+            font-size: 26px;
+            font-weight: 800;
+            margin-left: 10px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        #action-panel {
+            position: absolute;
+            bottom: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 15, 22, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 20px 40px;
+            display: flex;
+            gap: 20px;
+            z-index: 30;
+            display: none;
+            align-items: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        select {
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        select:hover {
+            border-color: #00f2fe;
+        }
+
+        button.game-btn {
+            color: #fff;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .btn-raise {
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+        }
+        .btn-raise:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 242, 254, 0.5);
+            filter: brightness(1.1);
+        }
+
+        .btn-doubt {
+            background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+            box-shadow: 0 4px 15px rgba(255, 8, 68, 0.3);
+        }
+        .btn-doubt:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 8, 68, 0.5);
+            filter: brightness(1.1);
+        }
+
+        #log-panel {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 260px;
+            max-height: 400px;
+            background: rgba(20, 20, 30, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            overflow-y: auto;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .log-entry {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 3px solid #ccc;
+        }
+
+        .log-sys {
+            border-left-color: #f1c40f;
+            color: #f1c40f;
+        }
+
+        #reconnect-modal {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 999;
+            color: #fff;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        #reconnect-modal h2 {
+            color: #ff007f;
+            letter-spacing: 2px;
+        }
+
+        #current-bid-display {
+            position: absolute;
+            top: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid #ff007f;
+            border-radius: 16px;
+            padding: 10px 30px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.3);
+            z-index: 50;
+            text-align: center;
+            min-width: 200px;
+        }
+
+        #current-bid-title {
+            font-size: 14px;
+            color: #f1c40f;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        #current-bid-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 10px #00f2fe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bid-face-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            color: #000;
+            border-radius: 6px;
+            width: 36px;
+            height: 36px;
+            font-size: 24px;
+            font-weight: bold;
+            margin-right: 12px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+            text-shadow: none;
+        }
+
+        #result-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 22, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 2px solid #f1c40f;
+            border-radius: 32px;
+            padding: 40px 60px;
+            box-shadow: 0 0 50px rgba(241, 196, 15, 0.4);
+            text-align: center;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 380px;
+        }
+
+        #result-title {
+            font-size: 20px;
+            color: #f1c40f;
+            letter-spacing: 4px;
+            font-weight: 700;
+        }
+
+        #result-detail {
+            font-size: 48px;
+            font-weight: 800;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #result-detail .bid-face-icon {
+            margin: 0 10px;
+        }
+
+        #result-judgment {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 10px;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            #title {
+                top: 10px;
+                left: 10px;
+                font-size: 16px;
+            }
+
+            #role-indicator {
+                top: 35px;
+                left: 10px;
+                font-size: 12px;
+            }
+
+            #btn-help {
+                top: 10px;
+                right: 10px;
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+
+            #current-bid-display {
+                top: 190px;
+                padding: 8px 15px;
+                min-width: 150px;
+            }
+            #current-bid-title {
+                font-size: 10px;
+            }
+            #current-bid-value {
+                font-size: 20px;
+            }
+            .bid-face-icon {
+                width: 24px;
+                height: 24px;
+                font-size: 16px;
+                margin-right: 6px;
+            }
+
+            #hud {
+                top: 15px;
+                flex-direction: column;
+                gap: 8px;
+                align-items: center;
+            }
+
+            .player-info {
+                font-size: 14px;
+                padding: 6px 12px;
+            }
+
+            #log-panel {
+                top: auto;
+                bottom: 150px;
+                right: 10px;
+                width: 200px;
+                max-height: 150px;
+                font-size: 12px;
+                padding: 10px;
+            }
+
+            #ui {
+                bottom: 100px;
+                padding: 15px 20px;
+                min-width: 250px;
+                width: 85%;
+            }
+
+            #instruction {
+                font-size: 20px;
+            }
+
+            #sub-instruction {
+                font-size: 12px;
+            }
+
+            #action-panel {
+                bottom: 15px;
+                width: 95%;
+                max-width: 400px;
+                padding: 10px;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+
+            select,
+            button.game-btn {
+                font-size: 14px;
+                padding: 8px 12px;
+                flex: 1 1 40%;
+            }
+
+            #connection-panel {
+                padding: 20px;
+            }
+
+            #input-room-id {
+                width: 90%;
+                font-size: 18px;
+            }
+
+            .btn-connect {
+                width: 90%;
+            }
+        }
+    </style>
 </head>
+
 <body>
+    <div id="vignette"></div>
+    <div id="title">Liar's Dice Online</div>
+    <div id="role-indicator"></div>
+    <button id="btn-help">?</button>
 
-<div id="game-board">
-  <h2>ライアーズダイス (4人対戦)</h2>
-  <div id="log">ゲーム開始！最初のラウンドです。</div>
-  
-  <div class="info-panel">
-    <div>全体の残りダイス合計: <span id="total-dice-count">20</span> 個</div>
-    <div class="info-text" id="current-bid-display">現在のビッド: なし</div>
-  </div>
-
-  <div class="players-grid" id="players-grid">
+    <div id="rule-modal">
+        <h2>遊び方・ルール</h2>
+        <ul>
+            <li><strong>概要：</strong>全員合わせたサイコロの中に、特定の目が何個あるかを予想するブラフゲームです。</li>
+            <li><strong>ワイルドカード：</strong><span class="highlight">「1の目」はジョーカー</span>です。</li>
+            <li><strong>宣言（レイズ）：</strong>前の人より「個数を増やす」か「個数は同じで出目を大きく」して宣言します。</li>
+            <li><strong>ダウト：</strong>相手の宣言が嘘だと思ったらダウト。負けた方のサイコロが減ります。</li>
+        </ul>
+        <button class="btn-close-modal" id="btn-close-rule">閉じる</button>
     </div>
-  
-  <div id="controls-section" class="controls">
-    <div style="margin-bottom: 10px; font-weight:bold;">あなたのアクション</div>
-    <select id="bid-qty" onchange="onQtyChange()"></select> 個の
-    <select id="bid-face">
-      <option value="1">⚀ 1</option>
-      <option value="2">⚁ 2</option>
-      <option value="3">⚂ 3</option>
-      <option value="4">⚃ 4</option>
-      <option value="5">⚄ 5</option>
-      <option value="6">⚅ 6</option>
-    </select>
-    が場にあると
-    <button id="btn-bid" onclick="placeBid()">宣言（ビッド）</button>
-    <br><br>
-    <button onclick="playerCallDudo()" id="btn-dudo" disabled>ダウト！（直前の宣言は嘘だ）</button>
-  </div>
 
-  <div id="next-control" class="controls" style="display:none;">
-    <button id="btn-next" onclick="startRound()">次のラウンドへ</button>
-  </div>
-</div>
+    <div id="reconnect-modal">
+        <h2>通信が切断されました</h2>
+        <p id="reconnect-status">再接続を試みています...</p>
+    </div>
 
-<script>
-  const diceFaces = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
-  
-  // プレイヤーデータ
-  let players = [
-    { id: 0, name: 'あなた', isHuman: true, count: 5, dice: [] },
-    { id: 1, name: 'CPU 1', isHuman: false, count: 5, dice: [] },
-    { id: 2, name: 'CPU 2', isHuman: false, count: 5, dice: [] },
-    { id: 3, name: 'CPU 3', isHuman: false, count: 5, dice: [] }
-  ];
-  
-  let currentBid = null; // {qty, face, playerId}
-  let currentTurnIndex = 0;
-  let roundStarterIndex = 0;
-  let roundOver = false;
+    <div id="connection-panel">
+        <h2>オンライン対戦</h2>
+        <div class="panel-section">
+            <h3>部屋を作る（ホスト）</h3>
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: 700; margin-right: 10px;">プレイ人数:</label>
+                <select id="sel-player-count" style="display: inline-block; width: auto; padding: 6px 12px; background: rgba(0,0,0,0.5); font-size:16px;">
+                    <option value="2">2人</option>
+                    <option value="3">3人</option>
+                    <option value="4">4人</option>
+                    <option value="5">5人</option>
+                    <option value="6">6人</option>
+                </select>
+            </div>
+            <button id="btn-host" class="btn-connect">ホストになる</button>
+            <div id="host-info" style="display:none; margin-top:10px;">
+                <span>部屋ID:</span><span id="room-id-display">----</span>
+                <br><small style="color:#aaa;">この4桁のIDを仲間に伝えてください</small>
+                <br><small id="host-status"
+                    style="color:#f1c40f; margin-top:10px; display:inline-block;">接続を待っています...</small>
+            </div>
+        </div>
+        <div class="panel-section">
+            <h3>部屋に入る（ゲスト）</h3>
+            <input type="text" id="input-room-id" placeholder="IDを入力" maxlength="4">
+            <button id="btn-join" class="btn-connect">ゲストとして参加</button>
+        </div>
+    </div>
 
-  function rollDice(count) {
-    let arr = [];
-    for(let i = 0; i < count; i++) {
-      arr.push(Math.floor(Math.random() * 6) + 1);
-    }
-    return arr.sort();
-  }
+    <div id="current-bid-display">
+        <div id="current-bid-title">現在の宣言</div>
+        <div id="current-bid-value">-</div>
+    </div>
 
-  function initGame() {
-    players.forEach(p => p.count = 5);
-    roundStarterIndex = 0;
-    startRound();
-  }
+    <div id="result-display">
+        <div id="result-title">RESULT</div>
+        <div id="result-detail"></div>
+        <div id="result-judgment"></div>
+    </div>
 
-  function getTotalDice() {
-    return players.reduce((sum, p) => sum + p.count, 0);
-  }
+    <div id="hud"></div>
+    <div id="log-panel"></div>
 
-  function getAlivePlayersCount() {
-    return players.filter(p => p.count > 0).length;
-  }
+    <div id="action-panel">
+        <select id="sel-face">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+        </select>
+        <span>の目が</span>
+        <select id="sel-count"></select>
+        <span>個以上</span>
+        <button id="btn-raise" class="game-btn btn-raise">レイズ (宣言)</button>
+        <button id="btn-doubt" class="game-btn btn-doubt">ダウト！</button>
+    </div>
 
-  function startRound() {
-    if (getAlivePlayersCount() <= 1) return; // 勝敗決着済み
+    <div id="ui">
+        <div id="instruction">準備中...</div>
+        <div id="sub-instruction"></div>
+    </div>
 
-    // ダイスを振る
-    players.forEach(p => {
-      if (p.count > 0) {
-        p.dice = rollDice(p.count);
-      } else {
-        p.dice = [];
-      }
-    });
+    <div id="canvas-container"></div>
 
-    currentBid = null;
-    roundOver = false;
-    
-    // ラウンド開始者を決定（敗者が脱落した場合は次の人）
-    currentTurnIndex = roundStarterIndex;
-    while(players[currentTurnIndex].count === 0) {
-      currentTurnIndex = (currentTurnIndex + 1) % players.length;
-    }
-    roundStarterIndex = currentTurnIndex; // 記録しておく
-
-    document.getElementById('next-control').style.display = 'none';
-    document.getElementById('controls-section').style.display = 'block';
-    
-    updateUI();
-    log(`ラウンド開始。\n${players[currentTurnIndex].name} の番からスタートします。`);
-    
-    processTurn();
-  }
-
-  function updateUI(revealAll = false) {
-    document.getElementById('total-dice-count').innerText = getTotalDice();
-    
-    const bidStr = currentBid ? `${players[currentBid.playerId].name} が 「${currentBid.qty}個 の ${diceFaces[currentBid.face]}」 と宣言` : "まだ宣言はありません";
-    document.getElementById('current-bid-display').innerText = bidStr;
-
-    const grid = document.getElementById('players-grid');
-    grid.innerHTML = '';
-
-    players.forEach((p, index) => {
-      let area = document.createElement('div');
-      area.className = `player-area ${index === currentTurnIndex && !roundOver ? 'active-turn' : ''} ${p.count === 0 ? 'eliminated' : ''}`;
-      
-      let title = document.createElement('div');
-      title.className = 'player-name';
-      title.innerText = `${p.name} (残り ${p.count} 個)`;
-      area.appendChild(title);
-
-      let diceCont = document.createElement('div');
-      diceCont.className = 'dice-container';
-      
-      p.dice.forEach(d => {
-        let dieEl = document.createElement('div');
-        if (p.isHuman || revealAll) {
-          dieEl.className = 'die';
-          dieEl.innerText = diceFaces[d];
-        } else {
-          dieEl.className = 'die hidden-die';
-          dieEl.innerText = '?';
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
         }
-        diceCont.appendChild(dieEl);
-      });
-      area.appendChild(diceCont);
-      grid.appendChild(area);
-    });
+    </script>
 
-    updateBidOptions();
-  }
+    <script type="module">
+        window.onerror = function (msg, url, line) {
+            console.error("エラーが発生しました: " + msg + "\n行: " + line);
+        };
 
-  function updateBidOptions() {
-    const qtySelect = document.getElementById('bid-qty');
-    qtySelect.innerHTML = '';
-    const total = getTotalDice();
-    let startQty = currentBid ? currentBid.qty : 1;
-    
-    for(let i = startQty; i <= total; i++) {
-      let opt = document.createElement('option');
-      opt.value = i;
-      opt.text = i;
-      qtySelect.appendChild(opt);
-    }
-    
-    if(!roundOver && players[currentTurnIndex].isHuman) {
-      onQtyChange();
-    }
-  }
+        import * as THREE from 'three';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+        import * as CANNON from 'cannon-es';
 
-  function onQtyChange() {
-    const qtySelect = document.getElementById('bid-qty');
-    const faceSelect = document.getElementById('bid-face');
-    if(!qtySelect.value) return;
+        // ==========================================
+        // 0. サウンド管理クラス (SoundManager)
+        // ==========================================
+        class SoundManager {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
 
-    const selectedQty = parseInt(qtySelect.value);
-    
-    for (let i = 0; i < faceSelect.options.length; i++) {
-      let faceVal = parseInt(faceSelect.options[i].value);
-      if (currentBid && selectedQty === currentBid.qty) {
-        faceSelect.options[i].disabled = faceVal <= currentBid.face;
-      } else {
-        faceSelect.options[i].disabled = false;
-      }
-    }
-    
-    if(faceSelect.options[faceSelect.selectedIndex].disabled) {
-      for (let i = 0; i < faceSelect.options.length; i++) {
-        if(!faceSelect.options[i].disabled) {
-          faceSelect.selectedIndex = i;
-          break;
+            playTone(freq, type, duration, vol = 0.1) {
+                if (this.ctx.state === 'suspended') return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playClick() { this.playTone(600, 'sine', 0.1, 0.05); }
+            playTurn() { this.playTone(880, 'sine', 0.2, 0.1); }
+            playWin() {
+                this.playTone(440, 'square', 0.1, 0.1);
+                setTimeout(() => this.playTone(554, 'square', 0.1, 0.1), 100);
+                setTimeout(() => this.playTone(659, 'square', 0.3, 0.1), 200);
+            }
+            playLose() {
+                this.playTone(300, 'sawtooth', 0.3, 0.1);
+                setTimeout(() => this.playTone(250, 'sawtooth', 0.5, 0.1), 300);
+            }
+
+            // ★ 追加：サイコロがぶつかる物理的な音（木やプラスチックが当たるような音）
+            playDiceHit(vol = 0.05) {
+                if (this.ctx.state === 'suspended') return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'square'; // 硬い音の成分
+                // ピッチをランダムにして複数のサイコロが転がっている感と、ぶつかり合う音を演出
+                osc.frequency.setValueAtTime(400 + Math.random() * 600, this.ctx.currentTime);
+
+                filter.type = 'bandpass';
+                filter.frequency.value = 1000;
+
+                // 非常に短いアタックとディケイで打撃音を作る
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.03);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.03);
+            }
         }
-      }
-    }
-  }
 
-  function log(msg) {
-    document.getElementById('log').innerText = msg;
-  }
+        // ==========================================
+        // 1. 通信管理クラス (NetworkManager)
+        // ==========================================
+        class NetworkManager {
+            constructor() {
+                this.peer = null;
+                this.isHost = false;
+                this.conns = [];
+                this.lastRoomId = null;
 
-  function setHumanControlsEnabled(enabled) {
-    document.getElementById('bid-qty').disabled = !enabled;
-    document.getElementById('bid-face').disabled = !enabled;
-    document.getElementById('btn-bid').disabled = !enabled;
-    document.getElementById('btn-dudo').disabled = !enabled || currentBid === null;
-  }
+                this.onRoomCreated = null;
+                this.onConnected = null;
+                this.onGuestJoined = null;
+                this.onMessageReceived = null;
+                this.onError = null;
+                this.onDisconnected = null;
+            }
 
-  function processTurn() {
-    if (roundOver) return;
+            hostRoom() {
+                this.isHost = true;
+                const shortId = Math.random().toString(36).substring(2, 6).toUpperCase();
+                this.lastRoomId = shortId;
+                const roomId = 'liarsdice-' + shortId;
 
-    updateUI();
-    let currentPlayer = players[currentTurnIndex];
+                try {
+                    this.peer = new Peer(roomId);
+                    this.peer.on('open', () => { if (this.onRoomCreated) this.onRoomCreated(shortId); });
 
-    if (currentPlayer.isHuman) {
-      setHumanControlsEnabled(true);
-      if(currentBid) log(`あなたの番です。ダウトするか、さらに吊り上げてください。`);
-      else log(`あなたの番です。最初のビッドをしてください。`);
-    } else {
-      setHumanControlsEnabled(false);
-      log(`${currentPlayer.name} の思考中...`);
-      setTimeout(() => cpuTurn(currentPlayer), 1500);
-    }
-  }
+                    this.peer.on('connection', (connection) => {
+                        connection.on('open', () => {
+                            this.conns.push(connection);
+                            this._setupConnection(connection);
+                            if (this.onGuestJoined) this.onGuestJoined(connection);
+                        });
+                    });
 
-  function getNextPlayerIndex() {
-    let nextIdx = (currentTurnIndex + 1) % players.length;
-    while(players[nextIdx].count === 0) {
-      nextIdx = (nextIdx + 1) % players.length;
-    }
-    return nextIdx;
-  }
+                    this.peer.on('error', (err) => { if (this.onError) this.onError(err); });
+                } catch (e) {
+                    if (this.onError) this.onError(e);
+                }
+            }
 
-  function placeBid() {
-    if (!players[currentTurnIndex].isHuman || roundOver) return;
-    
-    const qty = parseInt(document.getElementById('bid-qty').value);
-    const face = parseInt(document.getElementById('bid-face').value);
+            joinRoom(shortId) {
+                this.isHost = false;
+                this.lastRoomId = shortId;
+                try {
+                    this.peer = new Peer();
+                    this.peer.on('open', () => {
+                        const targetId = 'liarsdice-' + shortId;
+                        const connection = this.peer.connect(targetId);
+                        this.conns.push(connection);
 
-    executeBid(qty, face);
-  }
+                        connection.on('open', () => { this._setupConnection(connection); });
+                        connection.on('error', (err) => { if (this.onError) this.onError(err); });
+                    });
+                    this.peer.on('error', (err) => { if (this.onError) this.onError(err); });
+                } catch (e) {
+                    if (this.onError) this.onError(e);
+                }
+            }
 
-  function executeBid(qty, face) {
-    currentBid = { qty, face, playerId: currentTurnIndex };
-    log(`${players[currentTurnIndex].name} が 「${qty}個の${face}」 と宣言しました。`);
-    
-    setHumanControlsEnabled(false);
-    currentTurnIndex = getNextPlayerIndex();
-    setTimeout(processTurn, 1000);
-  }
+            reconnect(gameDataStore) {
+                if (this.isHost) {
+                    this.hostRoom();
+                } else {
+                    if (this.lastRoomId) {
+                        this.joinRoom(this.lastRoomId);
+                        setTimeout(() => this.send('RECONNECT_REQUEST', {}), 1500);
+                    }
+                }
+            }
 
-  function playerCallDudo() {
-    if (!players[currentTurnIndex].isHuman || roundOver || !currentBid) return;
-    executeDudo();
-  }
+            send(type, data = {}) {
+                this.conns.forEach(c => {
+                    if (c && c.open) c.send({ type, ...data });
+                });
+            }
 
-  function cpuTurn(cpu) {
-    if(roundOver) return;
-    
-    const totalDice = getTotalDice();
-    const unknownDiceCount = totalDice - cpu.count;
-    
-    if (currentBid) {
-      // ダウト判定
-      let myMatching = cpu.dice.filter(d => d === currentBid.face).length;
-      let requiredFromOthers = currentBid.qty - myMatching;
-      let expectedFromOthers = unknownDiceCount / 6; 
-      
-      let callDudoProbability = 0;
-      if (requiredFromOthers > expectedFromOthers + 2.0) {
-        callDudoProbability = 0.9;
-      } else if (requiredFromOthers > expectedFromOthers + 1.0) {
-        callDudoProbability = 0.5;
-      } else if (requiredFromOthers > expectedFromOthers + 0.5) {
-        callDudoProbability = 0.2;
-      }
+            _setupConnection(connection) {
+                connection.on('data', (msg) => {
+                    if (this.isHost && msg.type !== 'RECONNECT_REQUEST') {
+                        this.conns.forEach(c => {
+                            if (c !== connection && c.open) c.send(msg);
+                        });
+                    }
+                    if (this.onMessageReceived) this.onMessageReceived(msg);
+                });
 
-      if (Math.random() < callDudoProbability || currentBid.qty >= totalDice) {
-        executeDudo();
-        return;
-      }
-    }
+                connection.on('close', () => {
+                    this.conns = this.conns.filter(c => c !== connection);
+                    if (this.onDisconnected) this.onDisconnected();
+                });
 
-    // ビッド（吊り上げ）または初回ビッド
-    let nextQty = currentBid ? currentBid.qty : 1;
-    let nextFace = currentBid ? currentBid.face + 1 : 2; // CPUは2以上から始めることが多い
-    
-    if (currentBid && nextFace > 6) {
-      nextQty++;
-      nextFace = 1;
-    }
-
-    // 自分の手札で一番多い目を選ぶロジック
-    let counts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
-    cpu.dice.forEach(d => counts[d]++);
-    let maxCount = 0; let bestFace = 1;
-    for(let f in counts) {
-      if(counts[f] > maxCount) { maxCount = counts[f]; bestFace = parseInt(f); }
-    }
-    
-    if (currentBid) {
-       if (nextQty > currentBid.qty) nextFace = bestFace; 
-    } else {
-       // 初回ビッド：自分が持っているダイスの数 + 全体の期待値を少し控えめに
-       let safeTotal = Math.max(1, maxCount + Math.floor(unknownDiceCount / 6) - 1);
-       nextQty = safeTotal;
-       nextFace = bestFace;
-    }
-
-    // 安全装置: 全ダイス数を超えないようにする
-    if (nextQty > totalDice) {
-      executeDudo(); // 万が一計算上超える場合はダウトに切り替え
-      return;
-    }
-
-    executeBid(nextQty, nextFace);
-  }
-
-  function executeDudo() {
-    roundOver = true;
-    let callerId = currentTurnIndex;
-    let bidderId = currentBid.playerId;
-    let callerName = players[callerId].name;
-    let bidderName = players[bidderId].name;
-
-    log(`🚨 ${callerName} が 「ダウト！」 と叫びました！\n全員のダイスを公開します...`);
-    updateUI(true); // 全ダイス公開
-    document.getElementById('controls-section').style.display = 'none';
-    
-    setTimeout(() => {
-      // 実際の数をカウント
-      let actualCount = 0;
-      players.forEach(p => {
-        if(p.count > 0) {
-           actualCount += p.dice.filter(d => d === currentBid.face).length;
+                if (this.onConnected) this.onConnected();
+            }
         }
-      });
-      
-      let success = actualCount >= currentBid.qty;
-      let loserId = success ? callerId : bidderId;
-      let loserName = players[loserId].name;
-      
-      let resultMsg = `【結果】 場にある ${currentBid.face} の数は 合計 ${actualCount} 個 でした。\n`;
-      if (success) {
-         resultMsg += `宣言通り（またはそれ以上）です！ダウト失敗。\n間違えた ${loserName} がダイスを1つ失います。`;
-      } else {
-         resultMsg += `宣言より少ないです！ダウト成功。\n嘘を見破られた ${loserName} がダイスを1つ失います。`;
-      }
-      
-      log(resultMsg);
-      
-      // ペナルティ処理
-      players[loserId].count--;
-      
-      // 次のラウンドの開始者（負けた人。もし脱落した場合は、次の生存者）
-      roundStarterIndex = loserId;
-      
-      checkGameOver();
-    }, 3000);
-  }
 
-  function checkGameOver() {
-    let alivePlayers = players.filter(p => p.count > 0);
-    
-    if (alivePlayers.length === 1) {
-       let winner = alivePlayers[0];
-       let winMsg = winner.isHuman ? "🎉 おめでとうございます！あなたの優勝です！ 🎉" : `🏆 優勝は ${winner.name} です！`;
-       log(document.getElementById('log').innerText + "\n\n【ゲーム終了】 " + winMsg);
-       
-       document.getElementById('btn-next').innerText = "最初から遊ぶ";
-       document.getElementById('btn-next').onclick = initGame;
-    } else {
-       if (players[0].count === 0 && document.getElementById('btn-next').innerText !== "観戦を続ける / 次のラウンドへ") {
-           log(document.getElementById('log').innerText + "\n\n💀 あなたは脱落しました...");
-       }
-       document.getElementById('btn-next').innerText = players[0].count > 0 ? "次のラウンドへ" : "観戦を続ける / 次のラウンドへ";
-       document.getElementById('btn-next').onclick = startRound;
-    }
-    
-    document.getElementById('next-control').style.display = 'block';
-  }
+        // ==========================================
+        // 2. UI管理クラス (UIManager)
+        // ==========================================
+        class UIManager {
+            constructor() {
+                this.connPanel = document.getElementById('connection-panel');
+                this.btnHost = document.getElementById('btn-host');
+                this.btnJoin = document.getElementById('btn-join');
+                this.selPlayerCount = document.getElementById('sel-player-count');
+                this.inputRoomId = document.getElementById('input-room-id');
+                this.hostInfo = document.getElementById('host-info');
+                this.roomIdDisplay = document.getElementById('room-id-display');
+                this.hostStatus = document.getElementById('host-status');
 
-  window.onload = initGame;
-</script>
+                this.hud = document.getElementById('hud');
+                this.logPanel = document.getElementById('log-panel');
+
+                this.actionPanel = document.getElementById('action-panel');
+                this.selFace = document.getElementById('sel-face');
+                this.selCount = document.getElementById('sel-count');
+                this.btnRaise = document.getElementById('btn-raise');
+                this.btnDoubt = document.getElementById('btn-doubt');
+
+                this.uiCenter = document.getElementById('ui');
+                this.uiInstruction = document.getElementById('instruction');
+                this.uiSub = document.getElementById('sub-instruction');
+                this.roleIndicator = document.getElementById('role-indicator');
+
+                this.reconnectModal = document.getElementById('reconnect-modal');
+                this.reconnectStatus = document.getElementById('reconnect-status');
+
+                this.bidDisplay = document.getElementById('current-bid-display');
+                this.bidTitle = document.getElementById('current-bid-title');
+                this.bidValue = document.getElementById('current-bid-value');
+
+                this.resultDisplay = document.getElementById('result-display');
+                this.resultTitle = document.getElementById('result-title');
+                this.resultDetail = document.getElementById('result-detail');
+                this.resultJudgment = document.getElementById('result-judgment');
+
+                this.onHostClick = null;
+                this.onJoinClick = null;
+                this.onRaiseClick = null;
+                this.onDoubtClick = null;
+
+                this._setupEventListeners();
+            }
+
+            _setupEventListeners() {
+                document.getElementById('btn-help').addEventListener('click', () => { document.getElementById('rule-modal').style.display = 'block'; });
+                document.getElementById('btn-close-rule').addEventListener('click', () => { document.getElementById('rule-modal').style.display = 'none'; });
+
+                this.btnHost.addEventListener('click', () => {
+                    const count = parseInt(this.selPlayerCount.value);
+                    this.btnHost.disabled = true; this.btnJoin.disabled = true; this.inputRoomId.disabled = true; this.selPlayerCount.disabled = true;
+                    this.btnHost.innerText = "通信サーバーに接続中...";
+                    if (this.onHostClick) this.onHostClick(count);
+                });
+
+                this.btnJoin.addEventListener('click', () => {
+                    const shortId = this.inputRoomId.value.trim().toUpperCase();
+                    if (!shortId || shortId.length !== 4) return alert("4桁の部屋IDを正しく入力してください");
+                    this.btnHost.disabled = true; this.btnJoin.disabled = true; this.inputRoomId.disabled = true;
+                    this.btnJoin.innerText = "接続中...";
+                    if (this.onJoinClick) this.onJoinClick(shortId);
+                });
+
+                this.btnRaise.addEventListener('click', () => {
+                    const f = parseInt(this.selFace.value);
+                    const c = parseInt(this.selCount.value);
+                    if (this.onRaiseClick) this.onRaiseClick(f, c);
+                });
+
+                this.btnDoubt.addEventListener('click', () => {
+                    if (this.onDoubtClick) this.onDoubtClick();
+                });
+            }
+
+            showHostInfo(shortId) {
+                this.btnHost.innerText = "ホストになる";
+                this.hostInfo.style.display = 'block';
+                this.roomIdDisplay.innerText = shortId;
+            }
+            setHostStatus(text) { this.hostStatus.innerText = text; }
+            hideConnectionPanel() { this.connPanel.style.display = 'none'; }
+
+            showReconnectModal() { this.reconnectModal.style.display = 'flex'; }
+            hideReconnectModal() { this.reconnectModal.style.display = 'none'; }
+            setReconnectStatus(text) { this.reconnectStatus.innerText = text; }
+
+            initGameUI(players, myIndex) {
+                this.hud.style.display = 'flex';
+                this.uiCenter.style.display = 'flex';
+                this.logPanel.style.display = 'flex';
+                this.roleIndicator.innerText = (myIndex === 0) ? "【HOST】 Player 1" : `【GUEST】 Player ${myIndex + 1}`;
+
+                this.hud.innerHTML = '';
+                players.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'player-info';
+                    div.id = 'hud-' + p.id;
+                    this.hud.appendChild(div);
+                });
+            }
+
+            updateHUD(players, myIndex) {
+                players.forEach((p, i) => {
+                    const div = document.getElementById('hud-' + p.id);
+                    if (div) {
+                        const nameText = `${p.name}${i === myIndex ? ' (You)' : ''}`;
+                        let diceIcons = '';
+                        for(let j = 0; j < p.count; j++) {
+                            diceIcons += '<span class="dice-icon">🎲</span>';
+                        }
+                        
+                        div.innerHTML = `
+                            <div class="player-name">${nameText}</div>
+                            <div class="player-dice">
+                                ${diceIcons}
+                                <span class="dice-number">${p.count}</span>
+                            </div>
+                        `;
+                        div.style.color = '#' + p.colorHex.toString(16).padStart(6, '0');
+                    }
+                });
+            }
+
+            setInstruction(mainText, subText = "") {
+                this.uiInstruction.innerText = mainText;
+                this.uiSub.innerText = subText;
+            }
+
+            updateActionOptions(currentBidCount, totalDice) {
+                this.selCount.innerHTML = '';
+                let minCount = currentBidCount > 0 ? currentBidCount : 1;
+                for (let i = minCount; i <= totalDice; i++) {
+                    const opt = document.createElement('option');
+                    opt.value = i; opt.innerText = i;
+                    this.selCount.appendChild(opt);
+                }
+                this.btnDoubt.disabled = (currentBidCount === 0);
+            }
+
+            showActionPanel() { this.actionPanel.style.display = 'flex'; }
+            hideActionPanel() { this.actionPanel.style.display = 'none'; }
+            hideCenterUI() { this.uiCenter.style.display = 'none'; }
+            showCenterUI() { this.uiCenter.style.display = 'flex'; }
+
+            addLog(msg, typeOrHex) {
+                const el = document.createElement('div');
+                el.className = 'log-entry';
+                if (typeOrHex === 'sys') { el.classList.add('log-sys'); }
+                else { el.style.borderLeftColor = typeOrHex; }
+                el.innerText = msg;
+                this.logPanel.appendChild(el);
+                this.logPanel.scrollTop = this.logPanel.scrollHeight;
+            }
+
+            clearLog() { this.logPanel.innerHTML = ''; }
+
+            updateCurrentBidDisplay(face, count, playerName, colorHex) {
+                if (count === 0) {
+                    this.bidDisplay.style.display = 'none';
+                    return;
+                }
+                this.bidDisplay.style.display = 'flex';
+                this.bidDisplay.style.borderColor = '#' + colorHex;
+                // Add soft glow matching user's color
+                const r = parseInt(colorHex.substring(0, 2), 16);
+                const g = parseInt(colorHex.substring(2, 4), 16);
+                const b = parseInt(colorHex.substring(4, 6), 16);
+                this.bidDisplay.style.boxShadow = `0 0 20px rgba(${r}, ${g}, ${b}, 0.5)`;
+                this.bidTitle.innerText = `${playerName} の宣言`;
+                this.bidTitle.style.color = '#' + colorHex;
+                this.bidValue.innerHTML = `<span class="bid-face-icon">${face}</span> が ${count} 個以上`;
+            }
+
+            hideCurrentBidDisplay() {
+                this.bidDisplay.style.display = 'none';
+            }
+
+            hideHUD() {
+                this.hud.style.display = 'none';
+            }
+            showHUD() {
+                this.hud.style.display = 'flex';
+            }
+
+            showResult(bidFace, actualCount, doubterName, isSuccess) {
+                this.resultDisplay.style.display = 'flex';
+                this.resultDetail.innerHTML = `<span class="bid-face-icon">${bidFace}</span> × ${actualCount}個`;
+                if (isSuccess) {
+                    this.resultDisplay.style.borderColor = "#00f2fe";
+                    this.resultTitle.style.color = "#00f2fe";
+                    this.resultDisplay.style.boxShadow = "0 0 50px rgba(0, 242, 254, 0.4)";
+                    this.resultJudgment.innerText = `${doubterName} のダウト成功！`;
+                    this.resultJudgment.style.color = "#00f2fe";
+                } else {
+                    this.resultDisplay.style.borderColor = "#ff007f";
+                    this.resultTitle.style.color = "#ff007f";
+                    this.resultDisplay.style.boxShadow = "0 0 50px rgba(255, 0, 127, 0.4)";
+                    this.resultJudgment.innerText = `${doubterName} のダウト失敗...`;
+                    this.resultJudgment.style.color = "#ff007f";
+                }
+            }
+            hideResult() {
+                this.resultDisplay.style.display = 'none';
+            }
+        }
+
+        // ==========================================
+        // 3. 3D描画・物理演算クラス (GraphicsEngine)
+        // ==========================================
+        class GraphicsEngine {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.diceSize = 2.5;
+                this.cupRadius = 9.0;
+                this.cupHeight = 12;
+                this.circleRadius = 15;
+                this.particles = [];
+
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x050507);
+                this.scene.fog = new THREE.FogExp2(0x050507, 0.015);
+
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.targetCameraPos = new THREE.Vector3();
+                this.currentLookAt = new THREE.Vector3();
+                this.targetLookAt = new THREE.Vector3();
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.container.appendChild(this.renderer.domElement);
+
+                this._setupLighting();
+
+                this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -50, 0) });
+                this.floorPhysMat = new CANNON.Material();
+                this.dicePhysMat = new CANNON.Material();
+                this.world.addContactMaterial(new CANNON.ContactMaterial(this.floorPhysMat, this.dicePhysMat, { friction: 0.01, restitution: 0.6 }));
+                this.world.addContactMaterial(new CANNON.ContactMaterial(this.dicePhysMat, this.dicePhysMat, { friction: 0.001, restitution: 0.5 }));
+
+                this.onDiceStopped = null;
+
+                window.addEventListener('resize', () => this._onWindowResize(), false);
+            }
+
+            _onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            _setupLighting() {
+                this.scene.add(new THREE.AmbientLight(0x202545, 1.8));
+                const spotLight = new THREE.SpotLight(0xffeebb, 5.0);
+                spotLight.position.set(5, 35, 10);
+                this.scene.add(spotLight);
+                const topLight = new THREE.DirectionalLight(0xaaccff, 1.5);
+                topLight.position.set(-10, 30, -10); this.scene.add(topLight);
+            }
+
+            init(players, isHost, myIndex) {
+                this.isHost = isHost;
+                this.circleRadius = Math.max(15, players.length * 3.5);
+
+                const floorMesh = new THREE.Mesh(new THREE.CircleGeometry(100, 64), new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.1 }));
+                floorMesh.rotation.x = -Math.PI / 2; this.scene.add(floorMesh);
+
+                if (this.isHost) {
+                    const floorBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
+                    floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); this.world.addBody(floorBody);
+                    const ceilingBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: this.floorPhysMat });
+                    ceilingBody.quaternion.setFromEuler(Math.PI / 2, 0, 0); ceilingBody.position.set(0, 15, 0); this.world.addBody(ceilingBody);
+                }
+
+                players.forEach((p, i) => {
+                    p.angle = (i / players.length) * Math.PI * 2;
+                    p.cx = Math.sin(p.angle) * this.circleRadius;
+                    p.cz = Math.cos(p.angle) * this.circleRadius;
+
+                    this._createTray(p);
+                    p.cupGroup = this._createCup(p);
+                });
+
+                this.recreateDice(players);
+                this.setCameraMode('normal', players, myIndex);
+                this.camera.position.copy(this.targetCameraPos);
+                this.currentLookAt.copy(this.targetLookAt);
+                this.camera.lookAt(this.currentLookAt);
+            }
+
+            emitConfetti() {
+                const colors = [0x00f2fe, 0xff007f, 0xf1c40f, 0x00ff00, 0xff00ff];
+                const geo = new THREE.PlaneGeometry(1.5, 1.5);
+                for (let i = 0; i < 150; i++) {
+                    const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide });
+                    const p = new THREE.Mesh(geo, mat);
+                    p.position.set((Math.random() - 0.5) * 30, 40 + Math.random() * 10, (Math.random() - 0.5) * 30);
+                    p.userData.velocity = new THREE.Vector3((Math.random() - 0.5) * 15, Math.random() * 10, (Math.random() - 0.5) * 15);
+                    p.userData.rotVel = new THREE.Vector3(Math.random() * 0.2, Math.random() * 0.2, Math.random() * 0.2);
+                    this.scene.add(p);
+                    this.particles.push(p);
+                }
+            }
+
+            setCameraMode(mode, players, myIndex) {
+                const me = players[myIndex];
+                const extraRadius = Math.max(0, this.circleRadius - 15);
+
+                if (mode === 'resolve') {
+                    const offset = 1.0;
+                    const height = 60 + extraRadius * 2;
+                    this.targetCameraPos.set(Math.sin(me.angle) * offset, height, Math.cos(me.angle) * offset);
+                    this.targetLookAt.set(0, 0, 0);
+                } else {
+                    const dist = 38 + extraRadius * 2;
+                    const height = 32 + extraRadius * 1.5;
+                    this.targetCameraPos.set(Math.sin(me.angle) * dist, height, Math.cos(me.angle) * dist);
+                    
+                    const lookDist = 10 + extraRadius * 0.5;
+                    this.targetLookAt.set(Math.sin(me.angle) * lookDist, 0, Math.cos(me.angle) * lookDist);
+                }
+            }
+
+            _createTray(p) {
+                const trayGroup = new THREE.Group();
+                trayGroup.position.set(p.cx, 0, p.cz);
+                trayGroup.rotation.y = p.angle;
+
+                const wallRadius = this.cupRadius * 0.9;
+                const trayRimMesh = new THREE.Mesh(new THREE.RingGeometry(wallRadius, wallRadius + 0.2, 64), new THREE.MeshStandardMaterial({ color: p.colorHex, emissive: p.colorHex, emissiveIntensity: 0.8, side: THREE.DoubleSide }));
+                trayRimMesh.rotation.x = -Math.PI / 2; trayRimMesh.position.y = 0.02;
+                trayGroup.add(trayRimMesh);
+                this.scene.add(trayGroup);
+
+                if (this.isHost) {
+                    const numWallSegments = 32; const segmentWidth = (2 * Math.PI * wallRadius) / numWallSegments;
+                    for (let i = 0; i < numWallSegments; i++) {
+                        const localAngle = (i / numWallSegments) * Math.PI * 2;
+                        const adjustedRadius = wallRadius + 5;
+                        const wallBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(5, 10, segmentWidth / 2 + 0.1)), material: this.floorPhysMat });
+                        const lx = Math.cos(localAngle) * adjustedRadius;
+                        const lz = Math.sin(localAngle) * adjustedRadius;
+                        wallBody.position.set(p.cx + lx, 10, p.cz + lz);
+                        wallBody.quaternion.setFromEuler(0, -localAngle, 0);
+                        this.world.addBody(wallBody);
+                    }
+                }
+            }
+
+            _createCup(p) {
+                const cupPoints = []; cupPoints.push(new THREE.Vector2(0, this.cupHeight));
+                for (let i = 0; i <= 5; i++) cupPoints.push(new THREE.Vector2((this.cupRadius * 0.9 - 0.4) + Math.cos(Math.PI / 2 - (Math.PI / 2) * (i / 5)) * 0.4, (this.cupHeight - 0.4) + Math.sin(Math.PI / 2 - (Math.PI / 2) * (i / 5)) * 0.4));
+                for (let i = 0; i <= 10; i++) cupPoints.push(new THREE.Vector2((this.cupRadius - 0.4) + Math.cos(0 - Math.PI * (i / 10)) * 0.4, 0.4 + Math.sin(0 - Math.PI * (i / 10)) * 0.4));
+                cupPoints.push(new THREE.Vector2(this.cupRadius * 0.9 - 0.8, this.cupHeight - 0.8)); cupPoints.push(new THREE.Vector2(0, this.cupHeight - 0.8));
+
+                const cupGeo = new THREE.LatheGeometry(cupPoints, 64);
+                const cupMat = new THREE.MeshPhysicalMaterial({ color: 0x0f1118, metalness: 0.7, roughness: 0.15, clearcoat: 1.0, side: THREE.DoubleSide });
+
+                const cMesh = new THREE.Mesh(cupGeo, cupMat); cMesh.castShadow = true;
+                cMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(cupGeo, 25), new THREE.LineBasicMaterial({ color: p.colorHex, transparent: true, opacity: 0.35 })));
+                cMesh.position.z = this.cupRadius;
+
+                const pivot = new THREE.Group();
+                pivot.rotation.order = 'YXZ';
+                const pivotX = p.cx - Math.sin(p.angle) * this.cupRadius;
+                const pivotZ = p.cz - Math.cos(p.angle) * this.cupRadius;
+
+                pivot.position.set(pivotX, 26, pivotZ);
+                pivot.rotation.y = p.angle;
+                pivot.add(cMesh);
+
+                this.scene.add(pivot);
+                return pivot;
+            }
+
+            _createDiceTexture(number) {
+                const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#f8f8f8'; ctx.fillRect(0, 0, 256, 256);
+                ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 8; ctx.strokeRect(0, 0, 256, 256);
+                const drawDot = (x, y, color) => { ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); };
+                const color = (number === 1) ? '#ff3333' : '#222222';
+                if (number === 1 || number === 3 || number === 5) drawDot(128, 128, color);
+                if (number !== 1) { drawDot(64, 64, color); drawDot(192, 192, color); }
+                if (number === 4 || number === 5 || number === 6) { drawDot(192, 64, color); drawDot(64, 192, color); }
+                if (number === 6) { drawDot(64, 128, color); drawDot(192, 128, color); }
+                const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+                return texture;
+            }
+
+            recreateDice(players) {
+                const diceGeo = new RoundedBoxGeometry(this.diceSize, this.diceSize, this.diceSize, 6, 0.25);
+                const halfExtents = new CANNON.Vec3(this.diceSize / 2, this.diceSize / 2, this.diceSize / 2);
+
+                players.forEach(p => {
+                    if (p.meshes) p.meshes.forEach(m => this.scene.remove(m));
+                    if (this.isHost && p.bodies) p.bodies.forEach(b => this.world.removeBody(b));
+
+                    p.meshes = []; if (this.isHost) p.bodies = [];
+
+                    for (let i = 0; i < p.count; i++) {
+                        // Create unique materials for each dice to allow individual highlighting
+                        const diceMaterials = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshStandardMaterial({ 
+                            map: this._createDiceTexture(n), roughness: 0.15, metalness: 0.1, emissive: 0x000000 
+                        }));
+                        const mesh = new THREE.Mesh(diceGeo, diceMaterials);
+                        mesh.userData.diceMats = diceMaterials;
+
+                        mesh.castShadow = true; mesh.receiveShadow = true; mesh.visible = false;
+                        const startY = 2 + (i * 2.5);
+                        mesh.position.set(p.cx, startY, p.cz);
+
+                        this.scene.add(mesh); p.meshes.push(mesh);
+                        if (this.isHost) {
+                            const body = new CANNON.Body({ mass: 1, shape: new CANNON.Box(halfExtents), material: this.dicePhysMat });
+                            body.position.set(p.cx, startY, p.cz);
+                            this.world.addBody(body); p.bodies.push(body);
+                        }
+                    }
+                });
+            }
+
+            highlightDice(players, targetFace) {
+                players.forEach(p => {
+                    for (let i = 0; i < p.count; i++) {
+                        const mesh = p.meshes[i];
+                        const q = mesh.quaternion.clone().invert();
+                        const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+                        const absX = Math.abs(upVector.x); const absY = Math.abs(upVector.y); const absZ = Math.abs(upVector.z);
+                        let face = 0;
+                        if (absX > absY && absX > absZ) face = upVector.x > 0 ? 1 : 6;
+                        else if (absY > absX && absY > absZ) face = upVector.y > 0 ? 2 : 5;
+                        else face = upVector.z > 0 ? 3 : 4;
+
+                        if (face === targetFace || face === 1) {
+                            // Highlight winning / matching dice
+                            mesh.userData.diceMats.forEach(m => {
+                                m.emissive.setHex(0x00aaff);
+                                m.emissiveIntensity = 1.5;
+                                m.color.setHex(0xddf4ff);
+                            });
+                            mesh.scale.set(1.2, 1.2, 1.2);
+                            mesh.userData.isTarget = true;
+                            mesh.userData.baseY = mesh.position.y;
+                            mesh.userData.timeOffset = Math.random() * Math.PI * 2;
+                        } else {
+                            // Do not dim non-matching dice
+                            mesh.userData.diceMats.forEach(m => {
+                                m.emissive.setHex(0x000000);
+                                m.color.setHex(0xffffff);
+                            });
+                            mesh.scale.set(1.0, 1.0, 1.0);
+                            mesh.userData.isTarget = false;
+                        }
+                    }
+                });
+            }
+
+            resetDiceHighlight(players) {
+                players.forEach(p => {
+                    for (let i = 0; i < p.count; i++) {
+                        const mesh = p.meshes[i];
+                        mesh.scale.set(1, 1, 1);
+                        mesh.userData.isTarget = false;
+                        mesh.userData.diceMats.forEach(m => {
+                            m.emissive.setHex(0x000000);
+                            m.color.setHex(0xffffff);
+                        });
+                    }
+                });
+            }
+
+            startRoll(players) {
+                players.forEach(p => {
+                    for (let i = 0; i < p.count; i++) {
+                        const body = p.bodies[i];
+                        const rx = (Math.random() - 0.5) * 4;
+                        const rz = (Math.random() - 0.5) * 4;
+                        body.position.set(p.cx + rx, 15 + i * 1.5, p.cz + rz);
+                        body.velocity.set(0, 0, 0); body.angularVelocity.set(0, 0, 0);
+                        body.quaternion.setFromEuler(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                        body.applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 15, 0, (Math.random() - 0.5) * 15), new CANNON.Vec3(0, this.diceSize / 2, 0));
+                        body.angularVelocity.set(Math.random() * 20, Math.random() * 20, Math.random() * 20);
+                    }
+                });
+            }
+
+            countAllDice(players) {
+                let counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+                players.forEach(p => {
+                    for (let i = 0; i < p.count; i++) {
+                        const q = p.meshes[i].quaternion.clone().invert();
+                        const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+                        const absX = Math.abs(upVector.x); const absY = Math.abs(upVector.y); const absZ = Math.abs(upVector.z);
+                        let face = 0;
+                        if (absX > absY && absX > absZ) face = upVector.x > 0 ? 1 : 6;
+                        else if (absY > absX && absY > absZ) face = upVector.y > 0 ? 2 : 5;
+                        else face = upVector.z > 0 ? 3 : 4;
+                        counts[face]++;
+                    }
+                });
+                return counts;
+            }
+
+            syncPhysics(players, data) {
+                players.forEach((p, pIdx) => {
+                    p.meshes.forEach((m, mIdx) => {
+                        if (data[pIdx] && data[pIdx][mIdx]) {
+                            m.position.fromArray(data[pIdx][mIdx].p);
+                            m.quaternion.fromArray(data[pIdx][mIdx].q);
+                        }
+                    });
+                });
+            }
+
+            update(gameData) {
+                if (!this.scene) return null;
+                let syncData = null;
+
+                if (this.isHost) {
+                    this.world.step(1 / 60);
+                    let allStopped = true;
+
+                    gameData.players.forEach(p => {
+                        for (let i = 0; i < p.count; i++) {
+                            p.meshes[i].position.copy(p.bodies[i].position);
+                            p.meshes[i].quaternion.copy(p.bodies[i].quaternion);
+
+                            if (gameData.state === 'ROLLING') {
+                                const vSq = p.bodies[i].velocity.lengthSquared(); const avSq = p.bodies[i].angularVelocity.lengthSquared();
+                                if (vSq > 0.01 || avSq > 0.01) allStopped = false;
+
+                                if (vSq < 1.0 && avSq < 1.0 && p.bodies[i].position.y > (this.diceSize / 2 + 0.1)) {
+                                    p.bodies[i].applyImpulse(new CANNON.Vec3((Math.random() - 0.5) * 8, -2, (Math.random() - 0.5) * 8), new CANNON.Vec3(0, this.diceSize / 2, 0));
+                                    allStopped = false;
+                                }
+                            }
+                        }
+                    });
+
+                    if (gameData.state === 'ROLLING' && allStopped) {
+                        if (this.onDiceStopped) this.onDiceStopped();
+                    }
+
+                    syncData = gameData.players.map(p => p.meshes.map(m => ({ p: m.position.toArray(), q: m.quaternion.toArray() })));
+                }
+
+                if (this.particles.length > 0) {
+                    for (let i = this.particles.length - 1; i >= 0; i--) {
+                        const p = this.particles[i];
+                        p.position.addScaledVector(p.userData.velocity, 1 / 60);
+                        p.userData.velocity.y -= 15 * (1 / 60);
+                        p.rotation.x += p.userData.rotVel.x;
+                        p.rotation.y += p.userData.rotVel.y;
+                        if (p.position.y < -10) {
+                            this.scene.remove(p);
+                            this.particles.splice(i, 1);
+                        }
+                    }
+                }
+
+                const time = Date.now() * 0.005;
+
+                gameData.players.forEach(p => {
+                    if (p.cupGroup) {
+                        p.cupGroup.position.y = THREE.MathUtils.lerp(p.cupGroup.position.y, gameData.cupTargetY[p.id], 0.1);
+                        p.cupGroup.rotation.x = THREE.MathUtils.lerp(p.cupGroup.rotation.x, gameData.cupTargetRotX[p.id], 0.15);
+                    }
+
+                    if (gameData.state === 'RESOLVE' || gameData.state === 'GAME_OVER') {
+                        for (let i = 0; i < p.count; i++) {
+                            const m = p.meshes[i];
+                            if (m.userData.isTarget) {
+                                m.position.y = (m.userData.baseY || 0) + 1.5 + Math.sin(time + m.userData.timeOffset) * 0.5;
+                                m.rotation.y += 0.05;
+                            }
+                        }
+                    }
+                });
+
+                this.camera.position.lerp(this.targetCameraPos, 0.05);
+                this.currentLookAt.lerp(this.targetLookAt, 0.05);
+                this.camera.lookAt(this.currentLookAt);
+
+                this.renderer.render(this.scene, this.camera);
+                return syncData;
+            }
+        }
+
+        // ==========================================
+        // 4. ゲーム進行管理クラス (GameManager)
+        // ==========================================
+        class GameManager {
+            constructor() {
+                this.network = new NetworkManager();
+                this.ui = new UIManager();
+                this.graphics = new GraphicsEngine('canvas-container');
+                this.sound = new SoundManager();
+
+                this.state = 'INITIALIZING';
+                this.isHost = false;
+                this.myIndex = 0;
+
+                this.playerCount = 0;
+                this.players = [];
+                this.connectedGuests = 0;
+
+                this.cupTargetY = {};
+                this.cupTargetRotX = {};
+                this.turnIndex = 0;
+                this.currentBid = { face: 0, count: 0, playerId: null };
+
+                this._setupEvents();
+
+                document.addEventListener('click', () => this.sound.resume(), { once: true });
+            }
+
+            initPlayers(count) {
+                this.playerCount = count;
+                this.players = [];
+                this.cupTargetY = {};
+                this.cupTargetRotX = {};
+
+                for (let i = 0; i < this.playerCount; i++) {
+                    const id = 'player' + i;
+                    const hue = i / this.playerCount;
+                    const color = new THREE.Color().setHSL(hue, 1.0, 0.6).getHex();
+
+                    this.players.push({
+                        id: id, count: 5, meshes: [], bodies: [], cupGroup: null,
+                        name: 'Player ' + (i + 1), colorHex: color,
+                        angle: 0, cx: 0, cz: 0
+                    });
+
+                    this.cupTargetY[id] = 0;
+                    this.cupTargetRotX[id] = 0;
+                }
+            }
+
+            _getFullState() {
+                return {
+                    state: this.state,
+                    turnIndex: this.turnIndex,
+                    currentBid: this.currentBid,
+                    playerCounts: this.players.map(p => p.count)
+                };
+            }
+
+            _restoreFullState(stateData) {
+                this.state = stateData.state;
+                this.turnIndex = stateData.turnIndex;
+                this.currentBid = stateData.currentBid;
+
+                stateData.playerCounts.forEach((count, i) => {
+                    this.players[i].count = count;
+                });
+
+                this.ui.updateHUD(this.players, this.myIndex);
+                this.graphics.recreateDice(this.players);
+
+                if (this.currentBid && this.currentBid.count > 0) {
+                    const cp = this.players.find(p => p.id === this.currentBid.playerId);
+                    if (cp) this.ui.updateCurrentBidDisplay(this.currentBid.face, this.currentBid.count, cp.name, cp.colorHex.toString(16).padStart(6, '0'));
+                } else {
+                    this.ui.hideCurrentBidDisplay();
+                }
+
+                if (this.state === 'PLAYING') {
+                    this.proceedTurnLocal(this.turnIndex);
+                } else if (this.state === 'IDLE' || this.state === 'ROLLING') {
+                    this.ui.setInstruction("通信が復帰しました。進行をお待ちください");
+                }
+
+                this.ui.hideReconnectModal();
+            }
+
+            _setupEvents() {
+                this.ui.onHostClick = (count) => {
+                    this.isHost = true; this.myIndex = 0;
+                    this.initPlayers(count);
+                    this.network.hostRoom();
+                    this.sound.playClick();
+                };
+
+                this.ui.onJoinClick = (shortId) => {
+                    this.isHost = false;
+                    this.network.joinRoom(shortId);
+                    this.sound.playClick();
+                };
+
+                this.ui.onRaiseClick = (face, count) => {
+                    if (this.state !== 'PLAYING' || this.turnIndex !== this.myIndex) return;
+
+                    if (this.validateBid(face, count)) {
+                        this.sound.playClick();
+                        this.network.send('ACTION_RAISE', { playerId: this.players[this.myIndex].id, face: face, count: count });
+                        this.submitBidLocal(this.players[this.myIndex], face, count);
+                    } else alert("宣言が無効です。");
+                };
+
+                this.ui.onDoubtClick = () => {
+                    if (this.state !== 'PLAYING' || this.turnIndex !== this.myIndex) return;
+                    this.sound.playClick();
+                    this.network.send('ACTION_DOUBT', { playerId: this.players[this.myIndex].id });
+                    this.resolveDoubtLocal(this.players[this.myIndex]);
+                };
+
+                let isMouseDown = false;
+                const resetCupHold = () => {
+                    if (isMouseDown) {
+                        isMouseDown = false;
+                        document.getElementById('canvas-container').style.cursor = 'pointer';
+                    }
+                };
+
+                document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
+                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+
+                    if (this.state === 'INITIALIZING' && this.isHost && this.connectedGuests === this.playerCount - 1) {
+                        return this.startRoundHost();
+                    }
+                    if (this.state === 'PLAYING') {
+                        isMouseDown = true; document.getElementById('canvas-container').style.cursor = 'grabbing';
+                        const myId = this.players[this.myIndex].id;
+                        this.cupTargetY[myId] = 0;
+                        this.cupTargetRotX[myId] = -Math.PI * 0.3;
+                        this.network.send('CUP_MOVE', { playerId: myId, isUp: true });
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (isMouseDown) {
+                        isMouseDown = false; document.getElementById('canvas-container').style.cursor = 'pointer';
+                        // Only reset cup if still in PLAYING state
+                        if (this.state === 'PLAYING') {
+                            const myId = this.players[this.myIndex].id;
+                            this.cupTargetY[myId] = 0;
+                            this.cupTargetRotX[myId] = 0;
+                            this.network.send('CUP_MOVE', { playerId: myId, isUp: false });
+                        }
+                    }
+                });
+
+                // タッチイベントの追加（スマホ対応用）
+                document.getElementById('canvas-container').addEventListener('touchstart', (e) => {
+                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+                    if (this.state === 'INITIALIZING' && this.isHost && this.connectedGuests === this.playerCount - 1) {
+                        return this.startRoundHost();
+                    }
+                    if (this.state === 'PLAYING') {
+                        isMouseDown = true;
+                        const myId = this.players[this.myIndex].id;
+                        this.cupTargetY[myId] = 0;
+                        this.cupTargetRotX[myId] = -Math.PI * 0.3;
+                        this.network.send('CUP_MOVE', { playerId: myId, isUp: true });
+                    }
+                }, { passive: false });
+
+                document.getElementById('canvas-container').addEventListener('touchend', () => {
+                    if (isMouseDown) {
+                        isMouseDown = false;
+                        // Only reset cup if still in PLAYING state
+                        if (this.state === 'PLAYING') {
+                            const myId = this.players[this.myIndex].id;
+                            this.cupTargetY[myId] = 0;
+                            this.cupTargetRotX[myId] = 0;
+                            this.network.send('CUP_MOVE', { playerId: myId, isUp: false });
+                        }
+                    }
+                });
+
+                this.network.onDisconnected = () => {
+                    if (this.state === 'GAME_OVER') return;
+                    if (this.isHost) {
+                        this.ui.addLog("プレイヤーとの通信が切断されました", "sys");
+                        return;
+                    }
+                    this.ui.showReconnectModal();
+
+                    setTimeout(() => {
+                        this.network.reconnect();
+                    }, 3000);
+                };
+
+                this.network.onRoomCreated = (shortId) => { this.ui.showHostInfo(shortId); };
+
+                this.network.onGuestJoined = (conn) => {
+                    this.connectedGuests++;
+                    const assignedIndex = this.connectedGuests;
+                    // Store assigned index on connection object for later GAME_INIT
+                    conn.__assignedIndex = assignedIndex;
+
+                    // Just notify guest of their index (no graphics init yet)
+                    conn.send({ type: 'ASSIGN_INDEX', index: assignedIndex });
+                    this.ui.setHostStatus(`参加者を待っています... (${this.connectedGuests + 1}/${this.playerCount})`);
+
+                    if (this.connectedGuests === this.playerCount - 1) {
+                        this.ui.setHostStatus("全員揃いました！ゲームを開始します...");
+                        setTimeout(() => {
+                            // Send personalized GAME_INIT to each guest
+                            this.network.conns.forEach(c => {
+                                if (c && c.open) {
+                                    c.send({
+                                        type: 'GAME_INIT',
+                                        myIndex: c.__assignedIndex,
+                                        playerCount: this.playerCount
+                                    });
+                                }
+                            });
+
+                            this.ui.hideConnectionPanel();
+                            this.ui.initGameUI(this.players, this.myIndex);
+                            this.ui.updateHUD(this.players, this.myIndex);
+                            this.graphics.init(this.players, this.isHost, this.myIndex);
+                            this.animate();
+                        }, 1500);
+                    }
+                };
+
+                this.network.onConnected = () => {
+                    if (!this.isHost) {
+                        this.ui.setHostStatus("ホストからのデータを待っています...");
+                    }
+                };
+
+                this.network.onError = (err) => {
+                    console.error(err);
+                    this.ui.setReconnectStatus("エラー: " + err);
+                };
+
+                this.network.onMessageReceived = (msg) => {
+                    if (msg.type === 'ASSIGN_INDEX' && !this.isHost) {
+                        // Just store index and show waiting status - don't init yet
+                        this.myIndex = msg.index;
+                        this.ui.setHostStatus("ホストからの開始合図を待っています...");
+                        return;
+                    }
+
+                    if (msg.type === 'GAME_INIT' && !this.isHost) {
+                        // Full game initialization once all players are ready
+                        this.myIndex = msg.myIndex;
+                        this.initPlayers(msg.playerCount);
+                        this.ui.hideConnectionPanel();
+                        this.ui.initGameUI(this.players, this.myIndex);
+                        this.ui.updateHUD(this.players, this.myIndex);
+                        this.graphics.init(this.players, this.isHost, this.myIndex);
+                        this.animate();
+                        return;
+                    }
+
+                    if (msg.type === 'RECONNECT_REQUEST' && this.isHost) {
+                        this.network.send('STATE_RESTORE', this._getFullState());
+                    }
+                    if (msg.type === 'STATE_RESTORE' && !this.isHost) {
+                        this._restoreFullState(msg);
+                    }
+
+                    if (msg.type === 'SYNC_PHYSICS' && !this.isHost) {
+                        this.graphics.syncPhysics(this.players, msg.data);
+                    } else if (msg.type === 'STATE_START_ROUND') {
+                        // ★修正1：ゲストはラウンド開始の合図が来たらサイコロを再生成する
+                        this.graphics.recreateDice(this.players);
+                        this.startRoundLocal();
+                    } else if (msg.type === 'STATE_IDLE') {
+                        this.state = 'IDLE';
+                        Object.keys(this.cupTargetY).forEach(k => this.cupTargetY[k] = 0);
+                    } else if (msg.type === 'STATE_PROCEED_TURN') {
+                        this.proceedTurnLocal(msg.turnIndex);
+                    } else if (msg.type === 'ACTION_RAISE') {
+                        this.submitBidLocal(this.players.find(p => p.id === msg.playerId), msg.face, msg.count);
+                    } else if (msg.type === 'ACTION_DOUBT') {
+                        this.resolveDoubtLocal(this.players.find(p => p.id === msg.playerId));
+                    } else if (msg.type === 'CUP_MOVE') {
+                        this.cupTargetY[msg.playerId] = 0;
+                        this.cupTargetRotX[msg.playerId] = msg.isUp ? -Math.PI * 0.3 : 0;
+                    }
+                };
+
+                this.graphics.onDiceStopped = () => {
+                    this.state = 'IDLE';
+                    Object.keys(this.cupTargetY).forEach(k => this.cupTargetY[k] = 0);
+                    this.network.send('STATE_IDLE');
+                    setTimeout(() => { this.proceedTurnHost(); }, 500);
+                };
+            }
+
+            validateBid(face, count) {
+                if (this.currentBid.count === 0) return true;
+                if (count > this.currentBid.count) return true;
+                if (count === this.currentBid.count && face > this.currentBid.face) return true;
+                return false;
+            }
+
+            submitBidLocal(player, face, count) {
+                this.currentBid = { face, count, playerId: player.id };
+                const colorStr = player.colorHex.toString(16).padStart(6, '0');
+                this.ui.addLog(`${player.name} : ${face}が ${count}個以上！`, '#' + colorStr);
+                this.ui.hideActionPanel();
+                this.ui.setInstruction("");
+                
+                this.ui.updateCurrentBidDisplay(face, count, player.name, colorStr);
+
+                if (this.isHost) {
+                    do {
+                        this.turnIndex = (this.turnIndex + 1) % this.playerCount;
+                    } while (this.players[this.turnIndex].count <= 0);
+
+                    this.proceedTurnHost();
+                }
+            }
+
+            proceedTurnHost() {
+                this.network.send('STATE_PROCEED_TURN', { turnIndex: this.turnIndex });
+                this.proceedTurnLocal(this.turnIndex);
+            }
+
+            proceedTurnLocal(turnIdx) {
+                this.state = 'PLAYING';
+                this.turnIndex = turnIdx;
+                if (this.turnIndex === this.myIndex) {
+                    this.sound.playTurn();
+                    this.ui.setInstruction("あなたのターン");
+                    let totalDice = 0; this.players.forEach(p => totalDice += p.count);
+                    this.ui.updateActionOptions(this.currentBid.count, totalDice);
+                    this.ui.showActionPanel();
+                } else {
+                    const currentPlayerName = this.players[this.turnIndex] ? this.players[this.turnIndex].name : '...';
+                    this.ui.setInstruction(`${currentPlayerName} のターン...`);
+                    this.ui.hideActionPanel();
+                }
+            }
+
+            async resolveDoubtLocal(doubtingPlayer) {
+                this.state = 'RESOLVE';
+                // Force-cancel any active cup-hold interaction
+                resetCupHold();
+
+                this.ui.hideActionPanel();
+                this.ui.hideCurrentBidDisplay();
+                this.ui.hideHUD();
+                this.ui.addLog(`${doubtingPlayer.name} : ダウト！！`, '#' + doubtingPlayer.colorHex.toString(16).padStart(6, '0'));
+                this.ui.setInstruction("ダウト！！ 判定中...");
+
+                this.graphics.setCameraMode('resolve', this.players, this.myIndex);
+                this.players.forEach(p => p.meshes.forEach(m => m.visible = true));
+                this.ui.hideCenterUI();
+
+                Object.keys(this.cupTargetY).forEach(k => {
+                    this.cupTargetY[k] = 60;
+                    this.cupTargetRotX[k] = 0;
+                });
+
+                await new Promise(r => setTimeout(r, 1500));
+
+                const counts = this.graphics.countAllDice(this.players);
+                const bidF = this.currentBid.face;
+                const bidC = this.currentBid.count;
+                const onesCount = counts[1] || 0;
+                const actualC = (bidF === 1) ? onesCount : ((counts[bidF] || 0) + onesCount);
+
+                let logMsg = `【判定】 ${bidF}の目は全部で ${actualC}個 `;
+                if (bidF !== 1 && onesCount > 0) logMsg += `(ワイルドの1が ${onesCount}個) `;
+                this.ui.addLog(logMsg + `でした！`, 'sys');
+
+                // Highlight winning dice
+                this.graphics.highlightDice(this.players, bidF);
+
+                await new Promise(r => setTimeout(r, 1500));
+
+                const declaringPlayer = this.players.find(p => p.id === this.currentBid.playerId);
+
+                let isMyWin = false;
+                let isSuccess = false;
+
+                if (actualC >= bidC) {
+                    this.ui.addLog(`${doubtingPlayer.name} のダウト失敗！`, 'sys');
+                    doubtingPlayer.count -= 1;
+                    if (declaringPlayer.id === this.players[this.myIndex].id) isMyWin = true;
+                } else {
+                    this.ui.addLog(`${doubtingPlayer.name} のダウト成功！`, 'sys');
+                    declaringPlayer.count -= 1;
+                    if (doubtingPlayer.id === this.players[this.myIndex].id) isMyWin = true;
+                    isSuccess = true;
+                }
+
+                // Show central result display
+                this.ui.showResult(bidF, actualC, doubtingPlayer.name, isSuccess);
+
+                if (isMyWin) {
+                    this.sound.playWin();
+                    this.graphics.emitConfetti();
+                } else {
+                    this.sound.playLose();
+                }
+
+                this.ui.updateHUD(this.players, this.myIndex);
+
+                const alivePlayers = this.players.filter(p => p.count > 0);
+                if (alivePlayers.length <= 1) {
+                    this.ui.showCenterUI();
+                    const winnerText = alivePlayers[0].id === this.players[this.myIndex].id ? "YOU WIN!!" : "YOU LOSE...";
+                    this.ui.setInstruction(winnerText);
+                    this.ui.addLog(`ゲーム終了！`, 'sys');
+                    this.state = 'GAME_OVER';
+                } else {
+                    await new Promise(r => setTimeout(r, 4000));
+
+                    // ↓ ここにあった this.graphics.recreateDice(this.players); を削除
+
+                    if (this.isHost) {
+                        // ★修正2：ホストだけがここでサイコロを再生成し、ゲストに合図を送る
+                        this.graphics.recreateDice(this.players);
+
+                        this.turnIndex = this.players.findIndex(p => p.id === (actualC >= bidC ? doubtingPlayer.id : declaringPlayer.id));
+                        this.startRoundHost();
+                    }
+                }
+            }
+
+            startRoundHost() {
+                this.graphics.startRoll(this.players);
+                this.network.send('STATE_START_ROUND');
+                this.startRoundLocal();
+            }
+
+            startRoundLocal() {
+                this.state = 'ROLLING';
+                this.currentBid = { face: 0, count: 0, playerId: null };
+
+                this.ui.hideActionPanel();
+                this.ui.hideCurrentBidDisplay();
+                this.ui.hideResult();
+                this.ui.showHUD();
+                this.ui.showCenterUI();
+                this.ui.setInstruction("ガラガラガラ...", "画面長押しで自分のサイコロを確認できます");
+                this.ui.clearLog();
+                this.ui.addLog("--- ラウンド開始 ---", "sys");
+
+                this.graphics.resetDiceHighlight(this.players);
+                this.graphics.setCameraMode('normal', this.players, this.myIndex);
+
+                Object.keys(this.cupTargetY).forEach(k => {
+                    this.cupTargetY[k] = 22;
+                    this.cupTargetRotX[k] = 0;
+                });
+
+                this.players.forEach((p, idx) => { p.meshes.forEach(m => m.visible = (idx === this.myIndex)); });
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const gameData = {
+                    state: this.state,
+                    players: this.players,
+                    cupTargetY: this.cupTargetY,
+                    cupTargetRotX: this.cupTargetRotX
+                };
+                const syncData = this.graphics.update(gameData);
+                if (this.isHost && syncData) {
+                    this.network.send('SYNC_PHYSICS', { data: syncData });
+                }
+
+                // ★ ガラガラ音の再生ロジック（ネットワーク負荷ゼロ）
+                if (this.state === 'ROLLING') {
+                    // 毎フレーム一定の確率で短い打撃音を鳴らし、乱数で音量を変えてリアルさを出す
+                    if (Math.random() < 0.25) {
+                        this.sound.playDiceHit(0.01 + Math.random() * 0.03);
+                    }
+                }
+            }
+        }
+
+        const app = new GameManager();
+    </script>
 </body>
+
 </html>
