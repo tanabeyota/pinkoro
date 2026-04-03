@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ライアーズダイス (4人対戦)</title>
+<style>
+  :root {
+    --bg-color: #2c3e50;
+    --panel-bg: #34495e;
+    --text-color: #ecf0f1;
+    --accent-color: #1abc9c;
+    --danger-color: #e74c3c;
+    --dice-bg: #ffffff;
+    --dice-text: #2c3e50;
+    --active-bg: #2980b9;
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    text-align: center;
+    margin: 0;
+    padding: 10px;
+  }
+  #game-board {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--panel-bg);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  }
+  h2 { margin-top: 0; }
+  #log {
+    background: var(--accent-color);
+    color: white;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-weight: bold;
+    font-size: 1.1em;
+    min-height: 48px;
+    white-space: pre-wrap;
+  }
+  .players-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+  .player-area {
+    padding: 15px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .player-area.active-turn {
+    border-color: #f1c40f;
+    background: rgba(241, 196, 15, 0.1);
+  }
+  .player-area.eliminated {
+    opacity: 0.3;
+  }
+  .player-name {
+    font-weight: bold;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+  }
+  .dice-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 45px;
+  }
+  .die {
+    width: 40px;
+    height: 40px;
+    background: var(--dice-bg);
+    color: var(--dice-text);
+    font-size: 30px;
+    line-height: 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    user-select: none;
+  }
+  .hidden-die {
+    background: #7f8c8d;
+    color: #95a5a6;
+    font-size: 24px;
+  }
+  .info-panel {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  .info-text { font-size: 1.2em; font-weight: bold; color: #f1c40f; }
+  .controls {
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+  }
+  select, button {
+    font-size: 16px;
+    padding: 8px 16px;
+    margin: 5px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+  }
+  select { background: white; color: black; }
+  button {
+    background: #3498db;
+    color: white;
+    font-weight: bold;
+    transition: background 0.2s;
+  }
+  button:hover:not(:disabled) { background: #2980b9; }
+  button:disabled { background: #95a5a6; cursor: not-allowed; }
+  #btn-dudo { background: var(--danger-color); }
+  #btn-dudo:hover:not(:disabled) { background: #c0392b; }
+  
+  @media (max-width: 600px) {
+    .players-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-board">
+  <h2>ライアーズダイス (4人対戦)</h2>
+  <div id="log">ゲーム開始！最初のラウンドです。</div>
+  
+  <div class="info-panel">
+    <div>全体の残りダイス合計: <span id="total-dice-count">20</span> 個</div>
+    <div class="info-text" id="current-bid-display">現在のビッド: なし</div>
+  </div>
+
+  <div class="players-grid" id="players-grid">
+    </div>
+  
+  <div id="controls-section" class="controls">
+    <div style="margin-bottom: 10px; font-weight:bold;">あなたのアクション</div>
+    <select id="bid-qty" onchange="onQtyChange()"></select> 個の
+    <select id="bid-face">
+      <option value="1">⚀ 1</option>
+      <option value="2">⚁ 2</option>
+      <option value="3">⚂ 3</option>
+      <option value="4">⚃ 4</option>
+      <option value="5">⚄ 5</option>
+      <option value="6">⚅ 6</option>
+    </select>
+    が場にあると
+    <button id="btn-bid" onclick="placeBid()">宣言（ビッド）</button>
+    <br><br>
+    <button onclick="playerCallDudo()" id="btn-dudo" disabled>ダウト！（直前の宣言は嘘だ）</button>
+  </div>
+
+  <div id="next-control" class="controls" style="display:none;">
+    <button id="btn-next" onclick="startRound()">次のラウンドへ</button>
+  </div>
+</div>
+
+<script>
+  const diceFaces = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
+  
+  // プレイヤーデータ
+  let players = [
+    { id: 0, name: 'あなた', isHuman: true, count: 5, dice: [] },
+    { id: 1, name: 'CPU 1', isHuman: false, count: 5, dice: [] },
+    { id: 2, name: 'CPU 2', isHuman: false, count: 5, dice: [] },
+    { id: 3, name: 'CPU 3', isHuman: false, count: 5, dice: [] }
+  ];
+  
+  let currentBid = null; // {qty, face, playerId}
+  let currentTurnIndex = 0;
+  let roundStarterIndex = 0;
+  let roundOver = false;
+
+  function rollDice(count) {
+    let arr = [];
+    for(let i = 0; i < count; i++) {
+      arr.push(Math.floor(Math.random() * 6) + 1);
+    }
+    return arr.sort();
+  }
+
+  function initGame() {
+    players.forEach(p => p.count = 5);
+    roundStarterIndex = 0;
+    startRound();
+  }
+
+  function getTotalDice() {
+    return players.reduce((sum, p) => sum + p.count, 0);
+  }
+
+  function getAlivePlayersCount() {
+    return players.filter(p => p.count > 0).length;
+  }
+
+  function startRound() {
+    if (getAlivePlayersCount() <= 1) return; // 勝敗決着済み
+
+    // ダイスを振る
+    players.forEach(p => {
+      if (p.count > 0) {
+        p.dice = rollDice(p.count);
+      } else {
+        p.dice = [];
+      }
+    });
+
+    currentBid = null;
+    roundOver = false;
+    
+    // ラウンド開始者を決定（敗者が脱落した場合は次の人）
+    currentTurnIndex = roundStarterIndex;
+    while(players[currentTurnIndex].count === 0) {
+      currentTurnIndex = (currentTurnIndex + 1) % players.length;
+    }
+    roundStarterIndex = currentTurnIndex; // 記録しておく
+
+    document.getElementById('next-control').style.display = 'none';
+    document.getElementById('controls-section').style.display = 'block';
+    
+    updateUI();
+    log(`ラウンド開始。\n${players[currentTurnIndex].name} の番からスタートします。`);
+    
+    processTurn();
+  }
+
+  function updateUI(revealAll = false) {
+    document.getElementById('total-dice-count').innerText = getTotalDice();
+    
+    const bidStr = currentBid ? `${players[currentBid.playerId].name} が 「${currentBid.qty}個 の ${diceFaces[currentBid.face]}」 と宣言` : "まだ宣言はありません";
+    document.getElementById('current-bid-display').innerText = bidStr;
+
+    const grid = document.getElementById('players-grid');
+    grid.innerHTML = '';
+
+    players.forEach((p, index) => {
+      let area = document.createElement('div');
+      area.className = `player-area ${index === currentTurnIndex && !roundOver ? 'active-turn' : ''} ${p.count === 0 ? 'eliminated' : ''}`;
+      
+      let title = document.createElement('div');
+      title.className = 'player-name';
+      title.innerText = `${p.name} (残り ${p.count} 個)`;
+      area.appendChild(title);
+
+      let diceCont = document.createElement('div');
+      diceCont.className = 'dice-container';
+      
+      p.dice.forEach(d => {
+        let dieEl = document.createElement('div');
+        if (p.isHuman || revealAll) {
+          dieEl.className = 'die';
+          dieEl.innerText = diceFaces[d];
+        } else {
+          dieEl.className = 'die hidden-die';
+          dieEl.innerText = '?';
+        }
+        diceCont.appendChild(dieEl);
+      });
+      area.appendChild(diceCont);
+      grid.appendChild(area);
+    });
+
+    updateBidOptions();
+  }
+
+  function updateBidOptions() {
+    const qtySelect = document.getElementById('bid-qty');
+    qtySelect.innerHTML = '';
+    const total = getTotalDice();
+    let startQty = currentBid ? currentBid.qty : 1;
+    
+    for(let i = startQty; i <= total; i++) {
+      let opt = document.createElement('option');
+      opt.value = i;
+      opt.text = i;
+      qtySelect.appendChild(opt);
+    }
+    
+    if(!roundOver && players[currentTurnIndex].isHuman) {
+      onQtyChange();
+    }
+  }
+
+  function onQtyChange() {
+    const qtySelect = document.getElementById('bid-qty');
+    const faceSelect = document.getElementById('bid-face');
+    if(!qtySelect.value) return;
+
+    const selectedQty = parseInt(qtySelect.value);
+    
+    for (let i = 0; i < faceSelect.options.length; i++) {
+      let faceVal = parseInt(faceSelect.options[i].value);
+      if (currentBid && selectedQty === currentBid.qty) {
+        faceSelect.options[i].disabled = faceVal <= currentBid.face;
+      } else {
+        faceSelect.options[i].disabled = false;
+      }
+    }
+    
+    if(faceSelect.options[faceSelect.selectedIndex].disabled) {
+      for (let i = 0; i < faceSelect.options.length; i++) {
+        if(!faceSelect.options[i].disabled) {
+          faceSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  function log(msg) {
+    document.getElementById('log').innerText = msg;
+  }
+
+  function setHumanControlsEnabled(enabled) {
+    document.getElementById('bid-qty').disabled = !enabled;
+    document.getElementById('bid-face').disabled = !enabled;
+    document.getElementById('btn-bid').disabled = !enabled;
+    document.getElementById('btn-dudo').disabled = !enabled || currentBid === null;
+  }
+
+  function processTurn() {
+    if (roundOver) return;
+
+    updateUI();
+    let currentPlayer = players[currentTurnIndex];
+
+    if (currentPlayer.isHuman) {
+      setHumanControlsEnabled(true);
+      if(currentBid) log(`あなたの番です。ダウトするか、さらに吊り上げてください。`);
+      else log(`あなたの番です。最初のビッドをしてください。`);
+    } else {
+      setHumanControlsEnabled(false);
+      log(`${currentPlayer.name} の思考中...`);
+      setTimeout(() => cpuTurn(currentPlayer), 1500);
+    }
+  }
+
+  function getNextPlayerIndex() {
+    let nextIdx = (currentTurnIndex + 1) % players.length;
+    while(players[nextIdx].count === 0) {
+      nextIdx = (nextIdx + 1) % players.length;
+    }
+    return nextIdx;
+  }
+
+  function placeBid() {
+    if (!players[currentTurnIndex].isHuman || roundOver) return;
+    
+    const qty = parseInt(document.getElementById('bid-qty').value);
+    const face = parseInt(document.getElementById('bid-face').value);
+
+    executeBid(qty, face);
+  }
+
+  function executeBid(qty, face) {
+    currentBid = { qty, face, playerId: currentTurnIndex };
+    log(`${players[currentTurnIndex].name} が 「${qty}個の${face}」 と宣言しました。`);
+    
+    setHumanControlsEnabled(false);
+    currentTurnIndex = getNextPlayerIndex();
+    setTimeout(processTurn, 1000);
+  }
+
+  function playerCallDudo() {
+    if (!players[currentTurnIndex].isHuman || roundOver || !currentBid) return;
+    executeDudo();
+  }
+
+  function cpuTurn(cpu) {
+    if(roundOver) return;
+    
+    const totalDice = getTotalDice();
+    const unknownDiceCount = totalDice - cpu.count;
+    
+    if (currentBid) {
+      // ダウト判定
+      let myMatching = cpu.dice.filter(d => d === currentBid.face).length;
+      let requiredFromOthers = currentBid.qty - myMatching;
+      let expectedFromOthers = unknownDiceCount / 6; 
+      
+      let callDudoProbability = 0;
+      if (requiredFromOthers > expectedFromOthers + 2.0) {
+        callDudoProbability = 0.9;
+      } else if (requiredFromOthers > expectedFromOthers + 1.0) {
+        callDudoProbability = 0.5;
+      } else if (requiredFromOthers > expectedFromOthers + 0.5) {
+        callDudoProbability = 0.2;
+      }
+
+      if (Math.random() < callDudoProbability || currentBid.qty >= totalDice) {
+        executeDudo();
+        return;
+      }
+    }
+
+    // ビッド（吊り上げ）または初回ビッド
+    let nextQty = currentBid ? currentBid.qty : 1;
+    let nextFace = currentBid ? currentBid.face + 1 : 2; // CPUは2以上から始めることが多い
+    
+    if (currentBid && nextFace > 6) {
+      nextQty++;
+      nextFace = 1;
+    }
+
+    // 自分の手札で一番多い目を選ぶロジック
+    let counts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+    cpu.dice.forEach(d => counts[d]++);
+    let maxCount = 0; let bestFace = 1;
+    for(let f in counts) {
+      if(counts[f] > maxCount) { maxCount = counts[f]; bestFace = parseInt(f); }
+    }
+    
+    if (currentBid) {
+       if (nextQty > currentBid.qty) nextFace = bestFace; 
+    } else {
+       // 初回ビッド：自分が持っているダイスの数 + 全体の期待値を少し控えめに
+       let safeTotal = Math.max(1, maxCount + Math.floor(unknownDiceCount / 6) - 1);
+       nextQty = safeTotal;
+       nextFace = bestFace;
+    }
+
+    // 安全装置: 全ダイス数を超えないようにする
+    if (nextQty > totalDice) {
+      executeDudo(); // 万が一計算上超える場合はダウトに切り替え
+      return;
+    }
+
+    executeBid(nextQty, nextFace);
+  }
+
+  function executeDudo() {
+    roundOver = true;
+    let callerId = currentTurnIndex;
+    let bidderId = currentBid.playerId;
+    let callerName = players[callerId].name;
+    let bidderName = players[bidderId].name;
+
+    log(`🚨 ${callerName} が 「ダウト！」 と叫びました！\n全員のダイスを公開します...`);
+    updateUI(true); // 全ダイス公開
+    document.getElementById('controls-section').style.display = 'none';
+    
+    setTimeout(() => {
+      // 実際の数をカウント
+      let actualCount = 0;
+      players.forEach(p => {
+        if(p.count > 0) {
+           actualCount += p.dice.filter(d => d === currentBid.face).length;
+        }
+      });
+      
+      let success = actualCount >= currentBid.qty;
+      let loserId = success ? callerId : bidderId;
+      let loserName = players[loserId].name;
+      
+      let resultMsg = `【結果】 場にある ${currentBid.face} の数は 合計 ${actualCount} 個 でした。\n`;
+      if (success) {
+         resultMsg += `宣言通り（またはそれ以上）です！ダウト失敗。\n間違えた ${loserName} がダイスを1つ失います。`;
+      } else {
+         resultMsg += `宣言より少ないです！ダウト成功。\n嘘を見破られた ${loserName} がダイスを1つ失います。`;
+      }
+      
+      log(resultMsg);
+      
+      // ペナルティ処理
+      players[loserId].count--;
+      
+      // 次のラウンドの開始者（負けた人。もし脱落した場合は、次の生存者）
+      roundStarterIndex = loserId;
+      
+      checkGameOver();
+    }, 3000);
+  }
+
+  function checkGameOver() {
+    let alivePlayers = players.filter(p => p.count > 0);
+    
+    if (alivePlayers.length === 1) {
+       let winner = alivePlayers[0];
+       let winMsg = winner.isHuman ? "🎉 おめでとうございます！あなたの優勝です！ 🎉" : `🏆 優勝は ${winner.name} です！`;
+       log(document.getElementById('log').innerText + "\n\n【ゲーム終了】 " + winMsg);
+       
+       document.getElementById('btn-next').innerText = "最初から遊ぶ";
+       document.getElementById('btn-next').onclick = initGame;
+    } else {
+       if (players[0].count === 0 && document.getElementById('btn-next').innerText !== "観戦を続ける / 次のラウンドへ") {
+           log(document.getElementById('log').innerText + "\n\n💀 あなたは脱落しました...");
+       }
+       document.getElementById('btn-next').innerText = players[0].count > 0 ? "次のラウンドへ" : "観戦を続ける / 次のラウンドへ";
+       document.getElementById('btn-next').onclick = startRound;
+    }
+    
+    document.getElementById('next-control').style.display = 'block';
+  }
+
+  window.onload = initGame;
+</script>
+</body>
+</html>
