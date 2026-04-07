@@ -55,4 +55,5 @@ export class SoundManager {
 
         osc.start();
         osc.stop(this.ctx.currentTime + 0.03);
+    }
 }
